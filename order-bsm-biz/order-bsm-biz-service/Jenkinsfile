@@ -1,81 +1,143 @@
 pipeline {
     agent any
 
-    environment {
-        APP_NAME = 'order-bsm-biz-service'
-        IMAGE_NAME = 'order-bsm-biz-service:latest'
-        CONTAINER_NAME = 'order-bsm-biz-service'
-
-        HOST_PORT = '8082'
-        CONTAINER_PORT = '8080'
-    }
-
     stages {
 
         stage('Checkout') {
             steps {
-                echo '========== 拉取代码 =========='
-                checkout scm
+                echo '========== Checkout monkey-ams =========='
+
+                git(
+                    branch: 'main',
+                    url: 'https://github.com/kekegao/monkey-ams.git'
+                )
             }
         }
 
-        stage('Maven Build') {
+        stage('Check Workspace') {
             steps {
-                echo '========== Maven 打包 =========='
+                echo '========== 检查项目结构 =========='
+
+                sh '''
+                    pwd
+
+                    echo "========== POM FILES =========="
+
+                    find . -name "pom.xml" -type f
+
+                    echo "========== order-bsm-biz-service =========="
+
+                    ls -la order-bsm-biz/order-bsm-biz-service
+                '''
+            }
+        }
+
+        stage('Build order-bsm-biz-service') {
+            steps {
+                echo '========== 构建 order-bsm-biz-service =========='
 
                 sh '''
                     docker run --rm \
-                        -v "$WORKSPACE:/app" \
-                        -w /app \
-                        maven:3.9.11-eclipse-temurin-17 \
-                        mvn clean package -DskipTests
+                        -v jenkins_jenkins_home:/var/jenkins_home \
+                        -v jenkins-maven-repo:/root/.m2 \
+                        -w /var/jenkins_home/workspace/${JOB_NAME} \
+                        maven:3.9.11-eclipse-temurin-21 \
+                        mvn package \
+                        -pl order-bsm-biz/order-bsm-biz-service \
+                        -am \
+                        -DskipTests
                 '''
+            }
+        }
+
+        stage('Check JAR') {
+            steps {
+            echo '========== 检查 Spring Boot JAR =========='
+
+            sh '''
+                echo "========== WORKSPACE =========="
+                pwd
+                echo "$WORKSPACE"
+
+                echo "========== 当前目录 =========="
+                ls -lah
+
+                echo "========== 查找所有 JAR =========="
+
+                find "$WORKSPACE" \
+                    -type f \
+                    -name "*.jar" \
+                    -ls
+            '''
             }
         }
 
         stage('Docker Build') {
             steps {
-                echo '========== Docker 构建 =========='
+                echo '========== Docker Build =========='
 
                 sh '''
+                    cd "$WORKSPACE/order-bsm-biz/order-bsm-biz-service"
+
+                    echo "========== JAR =========="
+
+                    ls -lh target/*.jar
+
+                    mkdir -p docker-context
+
+                    cp Dockerfile docker-context/
+                    cp target/order-bsm-biz-service-*.jar docker-context/app.jar
+
+                    cd docker-context
+
                     docker build \
-                        -t ${IMAGE_NAME} \
+                        -t monkey-order-bsm-service:latest \
                         .
                 '''
             }
         }
 
-        stage('Stop Old Container') {
+        stage('Check Docker Image') {
             steps {
-                echo '========== 停止旧容器 =========='
+                echo '========== 检查 Docker Image =========='
 
                 sh '''
-                    docker stop ${CONTAINER_NAME} || true
-                    docker rm ${CONTAINER_NAME} || true
+                    docker images | grep monkey-order-bsm-service
                 '''
             }
         }
 
-        stage('Start New Container') {
+        stage('Deploy') {
             steps {
-                echo '========== 启动新容器 =========='
+                echo '========== 部署 order-bsm-biz-service =========='
 
                 sh '''
+                    echo "========== 停止旧容器 =========="
+
+                    docker stop order-bsm-biz-service || true
+
+                    echo "========== 删除旧容器 =========="
+
+                    docker rm order-bsm-biz-service || true
+
+                    echo "========== 启动新容器 =========="
+
                     docker run -d \
-                        --name ${CONTAINER_NAME} \
-                        -p ${HOST_PORT}:${CONTAINER_PORT} \
+                        --name order-bsm-biz-service \
+                        -p 8088:8080 \
                         --restart unless-stopped \
-                        ${IMAGE_NAME}
-                '''
-            }
-        }
+                        monkey-order-bsm-service:latest
 
-        stage('Check Container') {
-            steps {
-                echo '========== 检查容器 =========='
+                    echo "========== 容器状态 =========="
 
-                sh '''
-                    docker ps --filter "name=${CONTAINER_NAME}"
+                    docker ps \
+                        --filter "name=order-bsm-biz-service"
+
+                    echo "========== 最近日志 =========="
+
+                    docker logs \
+                        --tail 100 \
+                        order-bsm-biz-service
                 '''
             }
         }
@@ -88,10 +150,6 @@ pipeline {
 
         failure {
             echo '========== 部署失败 =========='
-
-            sh '''
-                docker logs ${CONTAINER_NAME} --tail 100 || true
-            '''
         }
     }
 }
