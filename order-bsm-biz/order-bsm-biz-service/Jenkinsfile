@@ -1,0 +1,97 @@
+pipeline {
+    agent any
+
+    environment {
+        APP_NAME = 'order-bsm-biz-service'
+        IMAGE_NAME = 'order-bsm-biz-service:latest'
+        CONTAINER_NAME = 'order-bsm-biz-service'
+
+        HOST_PORT = '8082'
+        CONTAINER_PORT = '8080'
+    }
+
+    stages {
+
+        stage('Checkout') {
+            steps {
+                echo '========== 拉取代码 =========='
+                checkout scm
+            }
+        }
+
+        stage('Maven Build') {
+            steps {
+                echo '========== Maven 打包 =========='
+
+                sh '''
+                    docker run --rm \
+                        -v "$WORKSPACE:/app" \
+                        -w /app \
+                        maven:3.9.11-eclipse-temurin-17 \
+                        mvn clean package -DskipTests
+                '''
+            }
+        }
+
+        stage('Docker Build') {
+            steps {
+                echo '========== Docker 构建 =========='
+
+                sh '''
+                    docker build \
+                        -t ${IMAGE_NAME} \
+                        .
+                '''
+            }
+        }
+
+        stage('Stop Old Container') {
+            steps {
+                echo '========== 停止旧容器 =========='
+
+                sh '''
+                    docker stop ${CONTAINER_NAME} || true
+                    docker rm ${CONTAINER_NAME} || true
+                '''
+            }
+        }
+
+        stage('Start New Container') {
+            steps {
+                echo '========== 启动新容器 =========='
+
+                sh '''
+                    docker run -d \
+                        --name ${CONTAINER_NAME} \
+                        -p ${HOST_PORT}:${CONTAINER_PORT} \
+                        --restart unless-stopped \
+                        ${IMAGE_NAME}
+                '''
+            }
+        }
+
+        stage('Check Container') {
+            steps {
+                echo '========== 检查容器 =========='
+
+                sh '''
+                    docker ps --filter "name=${CONTAINER_NAME}"
+                '''
+            }
+        }
+    }
+
+    post {
+        success {
+            echo '========== 部署成功 =========='
+        }
+
+        failure {
+            echo '========== 部署失败 =========='
+
+            sh '''
+                docker logs ${CONTAINER_NAME} --tail 100 || true
+            '''
+        }
+    }
+}
