@@ -1,4 +1,4 @@
-FROM eclipse-temurin:17-jre
+FROM eclipse-temurin:21-jre
 LABEL authors="gkk"
 WORKDIR /app
 
