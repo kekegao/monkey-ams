@@ -49,7 +49,7 @@ pipeline {
                         -v jenkins-maven-repo:/root/.m2 \
                         -w /var/jenkins_home/workspace/monkey-ams \
                         maven:3.9.11-eclipse-temurin-21 \
-                        mvn clean package -DskipTests
+                        mvn clean install -DskipTests
                 '''
             }
         }
