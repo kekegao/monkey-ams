@@ -124,6 +124,7 @@ pipeline {
 
                     docker run -d \
                         --name order-bsm-biz-service \
+                        --network ai-network \
                         -p 8088:8080 \
                         --restart unless-stopped \
                         monkey-order-bsm-service:latest
