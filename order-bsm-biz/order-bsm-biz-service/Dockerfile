@@ -2,7 +2,7 @@ FROM eclipse-temurin:21-jre
 LABEL authors="gkk"
 WORKDIR /app
 
-COPY target/*.jar app.jar
+COPY app.jar app.jar
 
 EXPOSE 8080
 
