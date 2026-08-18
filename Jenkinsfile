@@ -30,20 +30,16 @@ pipeline {
             }
         }
 
-        stage('Maven构建') {
+        /* stage('Maven构建') {
             steps {
                 echo '========== 构建 monkey-ams =========='
 
-                sh 'chmod +x mvnw'
-
-                sh '''
-                    ./mvnw clean package -DskipTests
-                '''
+                sh 'mvn clean package -DskipTests=true'
             }
-        }
+        } */
 
 
-        /* stage('Build Parent POM') {
+        stage('Build Parent POM') {
             steps {
                 echo '========== 构建 monkey-ams 父 POM =========='
 
@@ -52,13 +48,13 @@ pipeline {
                         -v jenkins_jenkins_home:/var/jenkins_home \
                         -v jenkins-maven-repo:/root/.m2 \
                         -w /var/jenkins_home/workspace/monkey-ams \
-                        maven:3.9.11-eclipse-temurin-17 \
-                        mvn clean install -N -DskipTests
+                        maven:3.9.11-eclipse-temurin-21 \
+                        mvn clean package -DskipTests
                 '''
             }
-        } */
+        }
 
-        stage('Verify Parent POM') {
+        /* stage('Verify Parent POM') {
             steps {
                 echo '========== 验证父 POM =========='
 
@@ -69,7 +65,7 @@ pipeline {
                         sh -c "find /root/.m2/repository -type f | head -50"
                 '''
             }
-        }
+        } */
     }
 
     post {
