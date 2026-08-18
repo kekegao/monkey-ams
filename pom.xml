@@ -29,10 +29,7 @@
     </properties>
 
     <modules>
-        <!--<module>dubbo-common</module>
-        <module>dubbo-api</module>
-        <module>dubbo-user-service</module>
-        <module>dubbo-order-service</module>-->
+
         <module>order-bsm-biz</module>
     </modules>
 

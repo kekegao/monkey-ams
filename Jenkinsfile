@@ -30,24 +30,20 @@ pipeline {
             }
         }
 
-        stage('Build order-bsm-biz') {
+        stage('Maven构建') {
             steps {
-                echo '========== 构建 order-bsm-biz =========='
+                echo '========== 构建 monkey-ams =========='
 
-                dir('monkey-ams') {
-                    sh 'chmod +x mvnw'
+                sh 'chmod +x mvnw'
 
-                    sh '''
-                        ./mvnw clean package \
-                            -pl order-bsm-biz \
-                            -am \
-                            -DskipTests
-                    '''
-                }
+                sh '''
+                    ./mvnw clean package -DskipTests
+                '''
             }
         }
 
-        stage('Build Parent POM') {
+
+        /* stage('Build Parent POM') {
             steps {
                 echo '========== 构建 monkey-ams 父 POM =========='
 
@@ -60,7 +56,7 @@ pipeline {
                         mvn clean install -N -DskipTests
                 '''
             }
-        }
+        } */
 
         stage('Verify Parent POM') {
             steps {
