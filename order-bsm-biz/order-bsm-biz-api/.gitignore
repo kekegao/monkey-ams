@@ -1,0 +1,63 @@
+# ========== IDE 相关 ==========
+.idea/
+*.iml
+*.iws
+*.ipr
+.vscode/
+.settings/
+.classpath
+.project
+.factorypath
+
+# ========== 编译输出 ==========
+target/
+out/
+build/
+classes/
+*.class
+
+# ========== Maven 相关 ==========
+pom.xml.tag
+pom.xml.releaseBackup
+pom.xml.versionsBackup
+pom.xml.next
+release.properties
+dependency-reduced-pom.xml
+buildNumber.properties
+.mvn/timing.properties
+.mvn/wrapper/maven-wrapper.jar
+
+# ========== 日志文件 ==========
+*.log
+logs/
+
+# ========== 系统文件 ==========
+.DS_Store
+Thumbs.db
+*.swp
+*.bak
+*~
+*.tmp
+
+# ========== 本地配置文件（敏感信息） ==========
+*.secret
+*.key
+*.p12
+*.keystore
+*.truststore
+
+# ========== 测试相关 ==========
+test-output/
+*.test
+surefire-reports/
+failsafe-reports/
+
+# ========== 代码生成/临时文件 ==========
+*.gen
+*.generated
+*.lock
+*.pid
+*.pid.lock
+.terraform/
+*.tfstate
+*.tfstate.*
