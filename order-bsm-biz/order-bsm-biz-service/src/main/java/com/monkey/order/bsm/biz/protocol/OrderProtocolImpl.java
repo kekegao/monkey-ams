@@ -29,13 +29,6 @@ public class OrderProtocolImpl implements OrderProtocol {
     @DistributedLock(key = "'order:create:' + #param['orderId']", waitTime = 3, leaseTime = -1)
     public void insertOrder(Map<String, Object> param) {
 
-        // 模拟业务耗时
-        try {
-            Thread.sleep(10000);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-        }
-
         Order order = new Order();
         order.setOrderId((String)param.get("orderId"));
         order.setShipperUserId((String)param.get("shipperUserId"));
