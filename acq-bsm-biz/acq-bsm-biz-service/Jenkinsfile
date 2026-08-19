@@ -1,0 +1,171 @@
+pipeline {
+    agent any
+
+    environment {
+            APP_PARENT_NAME = 'acq-bsm-biz'
+            APP_NAME = 'acq-bsm-biz-service'
+            IMAGE_NAME = 'monkey-acq-bsm-biz-service'
+            CONTAINER_NAME = 'acq-bsm-biz-service'
+            DOCKER_NETWORK = 'ai-network'
+            HOST_PORT = '8083'
+            CONTAINER_PORT = '8080'
+    }
+
+    stages {
+
+        stage('Checkout') {
+            steps {
+                echo '========== Checkout monkey-ams =========='
+
+                git(
+                    branch: 'main',
+                    url: 'https://github.com/kekegao/monkey-ams.git'
+                )
+            }
+        }
+
+        stage('Check Workspace') {
+            steps {
+                    sh '''
+                        echo "JOB_NAME=$JOB_NAME"
+                        echo "WORKSPACE=$WORKSPACE"
+
+                        echo "========== Jenkins Workspace =========="
+
+                        ls -lah /var/jenkins_home/workspace/${JOB_NAME}
+
+                        echo "========== ${APP_PARENT_NAME} =========="
+
+                        ls -lah /var/jenkins_home/workspace/${JOB_NAME}
+
+                        echo "========== POM =========="
+
+                        ls -lh /var/jenkins_home/workspace/${JOB_NAME}/pom.xml
+                    '''
+                }
+        }
+
+
+
+
+        stage('Build ${APP_PARENT_NAME}') {
+            steps {
+                echo '========== 构建 ${APP_PARENT_NAME} =========='
+
+                sh '''
+                    docker run --rm \
+                        -v jenkins_jenkins_home:/var/jenkins_home \
+                        -v jenkins-maven-repo:/root/.m2 \
+                        -w /var/jenkins_home/workspace/${JOB_NAME}/${APP_PARENT_NAME}\
+                        maven:3.9.11-eclipse-temurin-21 \
+                        mvn install -DskipTests
+                '''
+            }
+        }
+
+
+
+        stage('Check JAR') {
+            steps {
+            echo '========== 检查 Spring Boot JAR =========='
+
+            sh '''
+                echo "========== WORKSPACE =========="
+                pwd
+                echo "$WORKSPACE"
+
+                echo "========== 当前目录 =========="
+                ls -lah
+
+                echo "========== 查找所有 JAR =========="
+
+                find "$WORKSPACE" \
+                    -type f \
+                    -name "*.jar" \
+                    -ls
+            '''
+            }
+        }
+
+        stage('Docker Build') {
+            steps {
+                echo '========== Docker Build =========='
+
+                sh '''
+                    cd "$WORKSPACE/${APP_PARENT_NAME}/${APP_NAME}"
+
+                    echo "========== JAR =========="
+
+                    ls -lh target/*.jar
+
+                    mkdir -p docker-context
+
+                    cp Dockerfile docker-context/
+                    cp target/${APP_NAME}*.jar docker-context/app.jar
+
+                    cd docker-context
+
+                    docker build \
+                        -t ${IMAGE_NAME}:latest \
+                        .
+                '''
+            }
+        }
+
+        stage('Check Docker Image') {
+            steps {
+                echo '========== 检查 Docker Image =========='
+
+                sh '''
+                    docker images | grep ${IMAGE_NAME}
+                '''
+            }
+        }
+
+        stage('Deploy') {
+            steps {
+                echo '========== 部署 ${APP_NAME} =========='
+
+                sh '''
+                    echo "========== 停止旧容器 =========="
+
+                    docker stop ${APP_NAME} || true
+
+                    echo "========== 删除旧容器 =========="
+
+                    docker rm ${APP_NAME} || true
+
+                    echo "========== 启动新容器 =========="
+
+                    docker run -d \
+                        --name ${APP_NAME} \
+                        --network ai-network \
+                        -p ${HOST_PORT}:${CONTAINER_PORT} \
+                        --restart unless-stopped \
+                        ${IMAGE_NAME}:latest
+
+                    echo "========== 容器状态 =========="
+
+                    docker ps \
+                        --filter "name=${APP_NAME}"
+
+                    echo "========== 最近日志 =========="
+
+                    docker logs \
+                        --tail 100 \
+                        ${APP_NAME}
+                '''
+            }
+        }
+    }
+
+    post {
+        success {
+            echo '========== 部署成功 =========='
+        }
+
+        failure {
+            echo '========== 部署失败 =========='
+        }
+    }
+}
