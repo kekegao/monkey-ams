@@ -44,7 +44,6 @@ pipeline {
                         maven:3.9.11-eclipse-temurin-21 \
                         mvn package \
                         -pl order-bsm-biz/order-bsm-biz-service \
-                        -am \
                         -DskipTests
                 '''
             }
