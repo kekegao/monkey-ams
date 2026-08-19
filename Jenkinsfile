@@ -45,9 +45,9 @@ pipeline {
 
                 sh '''
                     docker run --rm \
-                        -v jenkins_jenkins_home:/var/jenkins_home \
+                        -v "$WORKSPACE:/workspace" \
                         -v jenkins-maven-repo:/root/.m2 \
-                        -w /var/jenkins_home/workspace/monkey-ams \
+                        -w /workspace \
                         maven:3.9.11-eclipse-temurin-21 \
                         mvn clean install -DskipTests
                 '''
