@@ -3,8 +3,11 @@ package com.monkey.order.bsm.biz.protocol;
 import com.monkey.order.bsm.biz.entity.Order;
 import com.monkey.order.bsm.biz.service.inf.OrderService;
 
+import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.dubbo.config.annotation.DubboService;
+import org.redisson.api.RBucket;
+import org.redisson.api.RedissonClient;
 import org.springframework.beans.factory.annotation.Autowired;
 
 import java.util.Date;
@@ -18,6 +21,9 @@ public class OrderProtocolImpl implements OrderProtocol {
     @Autowired
     private OrderService orderService;
 
+    @Resource
+    private RedissonClient redissonClient;
+
     @Override
     public void insertOrder(Map<String, Object> param) {
 
@@ -30,6 +36,11 @@ public class OrderProtocolImpl implements OrderProtocol {
         order.setCarrierName("朱雀一号");
         order.setCarrierMobile("1896985245");
         order.setCreateTime(new Date());
+        RBucket<String> bucket =
+                redissonClient.getBucket("test:key");
+
+        bucket.set("hello redis");
+        order.setShipperName(bucket.get());
         orderService.save(order);
 
     }
