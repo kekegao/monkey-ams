@@ -7,7 +7,7 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.context.annotation.ComponentScan;
 
 @SpringBootApplication
-@ComponentScan(basePackages = {"com.monkey.order.bsm.biz"})
+@ComponentScan(basePackages = {"com.monkey.order.bsm.biz","com.monkey.ams.common"})
 @EnableDubbo
 public class OrderBsmBizServiceApplication {
 

@@ -1,5 +1,6 @@
 package com.monkey.order.bsm.biz.protocol;
 
+import com.monkey.ams.common.utils.SnowflakeIdWorker;
 import com.monkey.order.bsm.biz.annotation.DistributedLock;
 import com.monkey.order.bsm.biz.entity.Order;
 import com.monkey.order.bsm.biz.service.inf.OrderService;
@@ -25,24 +26,26 @@ public class OrderProtocolImpl implements OrderProtocol {
     @Resource
     private RedissonClient redissonClient;
 
+    @Autowired
+    private SnowflakeIdWorker idService;
+
     @Override
     @DistributedLock(key = "'order:create:' + #param['orderId']", waitTime = 3, leaseTime = -1)
     public void insertOrder(Map<String, Object> param) {
 
         Order order = new Order();
         order.setOrderId((String)param.get("orderId"));
-        order.setShipperUserId((String)param.get("shipperUserId"));
+        order.setShipperUserId(idService.nextId());
         order.setShipperName("天宫");
         order.setShipperMobile("1896536545");
-        order.setCarrierUserId("54652245553");
+        order.setCarrierUserId(idService.nextId());
         order.setCarrierName("朱雀一号");
         order.setCarrierMobile("1896985245");
         order.setCreateTime(new Date());
-        RBucket<String> bucket =
-                redissonClient.getBucket("test:key");
-
-        bucket.set("hello redis");
-        order.setShipperName(bucket.get());
+        RBucket<String> bucket = redissonClient.getBucket(order.getShipperUserId());
+        bucket.set("shipperUserId:"+bucket.get());
+        bucket = redissonClient.getBucket(order.getCarrierUserId());
+        bucket.set("carrierUserId:"+bucket.get());
         orderService.save(order);
 
     }
