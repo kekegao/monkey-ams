@@ -16,67 +16,44 @@ pipeline {
 
         stage('Check Workspace') {
             steps {
-                echo '========== 检查项目结构 =========='
+                    sh '''
+                        echo "JOB_NAME=$JOB_NAME"
+                        echo "WORKSPACE=$WORKSPACE"
+
+                        echo "========== Jenkins Workspace =========="
+
+                        ls -lah /var/jenkins_home/workspace/${JOB_NAME}
+
+                        echo "========== order-bsm-biz =========="
+
+                        ls -lah /var/jenkins_home/workspace/${JOB_NAME}
+
+                        echo "========== POM =========="
+
+                        ls -lh /var/jenkins_home/workspace/${JOB_NAME}/pom.xml
+                    '''
+                }
+        }
+
+
+
+
+        stage('Build order-bsm-biz') {
+            steps {
+                echo '========== 构建 order-bsm-biz =========='
 
                 sh '''
-                    pwd
-
-                    echo "========== POM FILES =========="
-
-                    find . -name "pom.xml" -type f
-
-                    echo "========== order-bsm-biz-service =========="
-
-                    ls -la order-bsm-biz/order-bsm-biz-service
+                    docker run --rm \
+                        -v jenkins_jenkins_home:/var/jenkins_home \
+                        -v jenkins-maven-repo:/root/.m2 \
+                        -w /var/jenkins_home/workspace/${JOB_NAME}/order-bsm-biz\
+                        maven:3.9.11-eclipse-temurin-21 \
+                        mvn install -DskipTests
                 '''
             }
         }
 
-        stage('Build order-bsm-biz') {
-                    steps {
-                        echo '========== 构建 order-bsm-biz =========='
 
-                        sh '''
-                            docker run --rm \
-                                -v jenkins_jenkins_home:/var/jenkins_home \
-                                -v jenkins-maven-repo:/root/.m2 \
-                                -v "$WORKSPACE:/workspace" \
-                                -w /workspace/order-bsm-biz \
-                                maven:3.9.11-eclipse-temurin-21 \
-                                mvn install -N -DskipTests
-                        '''
-                    }
-                }
-
-        stage('Build order-bsm-biz-api') {
-                    steps {
-                        echo '========== 构建 order-bsm-biz-api =========='
-
-                        sh '''
-                            docker run --rm \
-                                -v jenkins-maven-repo:/root/.m2 \
-                                -v "$WORKSPACE:/workspace" \
-                                -w /workspace/order-bsm-biz/order-bsm-biz-api \
-                                maven:3.9.11-eclipse-temurin-21 \
-                                mvn clean install -DskipTests
-                        '''
-                    }
-                }
-
-                stage('Build order-bsm-biz-service') {
-                    steps {
-                        echo '========== 构建 order-bsm-biz-service =========='
-
-                        sh '''
-                            docker run --rm \
-                                -v jenkins-maven-repo:/root/.m2 \
-                                -v "$WORKSPACE:/workspace" \
-                                -w /workspace/order-bsm-biz/order-bsm-biz-service \
-                                maven:3.9.11-eclipse-temurin-21 \
-                                mvn clean package -DskipTests
-                        '''
-                    }
-                }
 
         stage('Check JAR') {
             steps {
