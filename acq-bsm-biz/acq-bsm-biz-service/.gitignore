@@ -55,7 +55,6 @@ failsafe-reports/
 # ========== 代码生成/临时文件 ==========
 *.gen
 *.generated
-*.log
 *.lock
 *.pid
 *.pid.lock
