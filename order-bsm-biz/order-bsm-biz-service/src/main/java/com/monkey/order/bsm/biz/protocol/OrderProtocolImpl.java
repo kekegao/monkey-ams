@@ -26,7 +26,7 @@ public class OrderProtocolImpl implements OrderProtocol {
     private RedissonClient redissonClient;
 
     @Override
-    @DistributedLock(key = "'order:create:' + #param.orderId", waitTime = 3, leaseTime = -1)
+    @DistributedLock(key = "'order:create:' + #param['orderId']", waitTime = 3, leaseTime = -1)
     public void insertOrder(Map<String, Object> param) {
 
         // 模拟业务耗时
