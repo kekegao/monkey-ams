@@ -24,6 +24,11 @@ public class OrderProtocolImpl implements OrderProtocol {
         Order order = new Order();
         order.setOrderId((String)param.get("orderId"));
         order.setShipperUserId((String)param.get("shipperUserId"));
+        order.setShipperName("天宫");
+        order.setShipperMobile("1896536545");
+        order.setCarrierUserId("54652245553");
+        order.setCarrierName("朱雀一号");
+        order.setCarrierMobile("1896985245");
         order.setCreateTime(new Date());
         orderService.save(order);
 
