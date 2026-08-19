@@ -43,9 +43,9 @@ public class OrderProtocolImpl implements OrderProtocol {
         order.setCarrierMobile("1896985245");
         order.setCreateTime(new Date());
         RBucket<String> bucket = redissonClient.getBucket(order.getShipperUserId());
-        bucket.set("shipperUserId:"+bucket.get());
+        bucket.set("shipperUserId:"+order.getShipperUserId());
         bucket = redissonClient.getBucket(order.getCarrierUserId());
-        bucket.set("carrierUserId:"+bucket.get());
+        bucket.set("carrierUserId:"+order.getCarrierUserId());
         orderService.save(order);
 
     }
