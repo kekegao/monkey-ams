@@ -43,7 +43,7 @@ pipeline {
                         -w /var/jenkins_home/workspace/${JOB_NAME} \
                         maven:3.9.11-eclipse-temurin-21 \
                         mvn package \
-                        -pl order-bsm-biz/order-bsm-biz-service \
+                        -pl order-bsm-biz \
                         -DskipTests
                 '''
             }
