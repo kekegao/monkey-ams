@@ -67,3 +67,4 @@ failsafe-reports/
 .terraform/
 *.tfstate
 *.tfstate.*
+/.mvn/
