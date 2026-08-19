@@ -7,13 +7,20 @@
         <sourceOutputDir name="target/generated-sources/annotations" />
         <sourceTestOutputDir name="target/generated-test-sources/test-annotations" />
         <outputRelativeToContentRoot value="true" />
+        <module name="acq-bsm-biz-service" />
         <module name="order-bsm-biz-api" />
+        <module name="ams-common" />
         <module name="order-bsm-biz-service" />
+        <module name="acq-bsm-biz-api" />
       </profile>
     </annotationProcessing>
   </component>
   <component name="JavacSettings">
     <option name="ADDITIONAL_OPTIONS_OVERRIDE">
+      <module name="acq-bsm-biz" options="" />
+      <module name="acq-bsm-biz-api" options="-parameters" />
+      <module name="acq-bsm-biz-service" options="-parameters" />
+      <module name="ams-common" options="-parameters" />
       <module name="order-bsm-biz" options="" />
       <module name="order-bsm-biz-api" options="-parameters" />
       <module name="order-bsm-biz-service" options="-parameters" />

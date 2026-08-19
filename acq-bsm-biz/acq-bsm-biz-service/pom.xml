@@ -4,13 +4,13 @@
     <modelVersion>4.0.0</modelVersion>
     <parent>
         <groupId>com.monkey</groupId>
-        <artifactId>order-bsm-biz</artifactId>
+        <artifactId>acq-bsm-biz</artifactId>
         <version>1.0.0-SNAPSHOT</version>
     </parent>
-    <artifactId>order-bsm-biz-service</artifactId>
+    <artifactId>acq-bsm-biz-service</artifactId>
     <version>0.0.1-SNAPSHOT</version>
-    <name>order-bsm-biz-service</name>
-    <description>order-bsm-biz-service</description>
+    <name>acq-bsm-biz-service</name>
+    <description>acq-bsm-biz-service</description>
     <url/>
     <licenses>
         <license/>
@@ -35,34 +35,9 @@
 
         <dependency>
             <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-web</artifactId>
-        </dependency>
-
-
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-test</artifactId>
             <scope>test</scope>
         </dependency>
-
-        <dependency>
-            <groupId>com.mysql</groupId>
-            <artifactId>mysql-connector-j</artifactId>
-            <scope>runtime</scope>
-        </dependency>
-
-        <!-- MyBatis-Plus -->
-        <dependency>
-            <groupId>com.baomidou</groupId>
-            <artifactId>mybatis-plus-spring-boot3-starter</artifactId>
-            <version>3.5.17</version>
-        </dependency>
-
-
-       <!-- <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-autoconfigure</artifactId>
-        </dependency>-->
 
         <dependency>
             <groupId>org.apache.dubbo</groupId>
@@ -94,17 +69,15 @@
 
         <dependency>
             <groupId>com.monkey</groupId>
-            <artifactId>order-bsm-biz-api</artifactId>
-            <version>${order-bsm-biz-api.version}</version>
-        </dependency>
-
-        <dependency>
-            <groupId>com.monkey</groupId>
             <artifactId>ams-common</artifactId>
             <version>${ams-common.version}</version>
         </dependency>
 
-
+        <dependency>
+            <groupId>com.monkey</groupId>
+            <artifactId>acq-bsm-biz-api</artifactId>
+            <version>${acq-bsm-biz-api.version}</version>
+        </dependency>
     </dependencies>
 
     <build>

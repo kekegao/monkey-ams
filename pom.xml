@@ -25,12 +25,16 @@
     <properties>
         <java.version>21</java.version>
         <dubbo.version>3.3.5</dubbo.version>
+        <ams-common.version>1.0.0-SNAPSHOT</ams-common.version>
         <order-bsm-biz-api.version>1.0.0-SNAPSHOT</order-bsm-biz-api.version>
+        <acq-bsm-biz-api.version>1.0.0-SNAPSHOT</acq-bsm-biz-api.version>
     </properties>
 
     <modules>
 
         <module>order-bsm-biz</module>
+        <module>acq-bsm-biz</module>
+        <module>ams-common</module>
     </modules>
 
     <dependencyManagement>
