@@ -40,11 +40,6 @@ Thumbs.db
 *.tmp
 
 # ========== 本地配置文件（敏感信息） ==========
-application-local.properties
-application-dev.properties
-application-*.local.properties
-bootstrap-local.yml
-bootstrap-local.yaml
 *.secret
 *.key
 *.p12
@@ -67,4 +62,3 @@ failsafe-reports/
 .terraform/
 *.tfstate
 *.tfstate.*
-/.mvn/
