@@ -1,5 +1,6 @@
 package com.monkey.order.bsm.biz.protocol;
 
+import com.monkey.order.bsm.biz.annotation.DistributedLock;
 import com.monkey.order.bsm.biz.entity.Order;
 import com.monkey.order.bsm.biz.service.inf.OrderService;
 
@@ -25,7 +26,15 @@ public class OrderProtocolImpl implements OrderProtocol {
     private RedissonClient redissonClient;
 
     @Override
+    @DistributedLock(key = "'order:create:' + #param.orderId", waitTime = 3, leaseTime = -1)
     public void insertOrder(Map<String, Object> param) {
+
+        // 模拟业务耗时
+        try {
+            Thread.sleep(10000);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
 
         Order order = new Order();
         order.setOrderId((String)param.get("orderId"));
