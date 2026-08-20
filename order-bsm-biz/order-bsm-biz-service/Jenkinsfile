@@ -8,7 +8,7 @@ pipeline {
                 echo '========== Checkout monkey-ams =========='
 
                 git(
-                    branch: 'main',
+                    branch: 'dev',
                     url: 'https://github.com/kekegao/monkey-ams.git'
                 )
             }
