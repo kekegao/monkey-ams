@@ -9,7 +9,7 @@ import org.springframework.stereotype.Service;
 
 /**
  * <p>
- * 订单表 服务实现类
+ * 订单表 服务实现类，包含发布，发货，运输等等88
  * </p>
  *
  * @author gkk
