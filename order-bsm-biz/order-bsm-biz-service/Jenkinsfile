@@ -32,18 +32,19 @@ pipeline {
 
         IMAGE_NAME = 'order-bsm-biz-service'
 
-        CONTAINER_NAME = 'order-bsm-biz-service'
-
         DOCKER_NETWORK = 'ai-network'
 
         APP_PORT = '8080'
 
-        // Spring Boot Actuator
         HEALTH_PATH = '/actuator/health'
 
-        // Docker Hub / Registry 暂时不使用
-        // 如果以后使用 Harbor，可以在这里扩展
+        // =========================
+        // 实例数量
+        // =========================
 
+        INSTANCE_COUNT = '3'
+
+        CONTAINER_PREFIX = 'order-bsm-biz-service'
 
         // =========================
         // Jenkins 自动版本
@@ -51,14 +52,17 @@ pipeline {
 
         VERSION = "1.0.${BUILD_NUMBER}"
 
-
-        // 当前正在运行的旧版本
-        PREVIOUS_IMAGE = ""
-
         IMAGE_FULL_NAME = ""
 
-        // 是否已经停止旧容器
-        OLD_CONTAINER_STOPPED = 'false'
+        // =========================
+        // 发布过程中记录
+        // =========================
+
+        PREVIOUS_IMAGE = ""
+
+        DEPLOYED_INSTANCES = ""
+
+        DEPLOY_FAILED = 'false'
     }
 
 
@@ -87,6 +91,7 @@ pipeline {
                             回滚版本不能为空！
 
                             例如：
+
                             ROLLBACK_VERSION=1.0.25
                             """
                         }
@@ -133,7 +138,7 @@ pipeline {
 
 
         // ==================================================
-        // 3. 获取 Git Commit
+        // 3. 生成版本
         // ==================================================
 
         stage('Generate Version') {
@@ -149,20 +154,13 @@ pipeline {
 
                 script {
 
-                    /* def gitCommitShort = sh(
-                        script: 'git rev-parse --short=7 HEAD',
-                        returnStdout: true
-                    ).trim() */
-
-
-                    def imageFullName =
-                        "${env.IMAGE_NAME}:${env.VERSION}"
-
-                    IMAGE_FULL_NAME = imageFullName
+                    IMAGE_FULL_NAME =
+                        "${IMAGE_NAME}:${VERSION}"
 
                     echo "========================================"
-                    echo "VERSION          = ${env.VERSION}"
-                    echo "IMAGE_FULL_NAME  = ${imageFullName}"
+                    echo "VERSION          = ${VERSION}"
+                    echo "IMAGE_FULL_NAME  = ${IMAGE_FULL_NAME}"
+                    echo "INSTANCE_COUNT   = ${INSTANCE_COUNT}"
                     echo "========================================"
                 }
             }
@@ -225,7 +223,9 @@ pipeline {
                     mkdir -p docker-context
 
                     cp Dockerfile docker-context/
-                    cp target/${APP_NAME}*.jar docker-context/app.jar
+
+                    cp target/${APP_NAME}*.jar \
+                       docker-context/app.jar
 
                     cd docker-context
 
@@ -234,13 +234,6 @@ pipeline {
                         -t ${IMAGE_NAME}:latest \
                         .
                 """
-
-                /* sh """
-                    docker build \
-                        -t ${IMAGE_NAME}:${VERSION} \
-                        -t ${IMAGE_NAME}:latest \
-                        .
-                """ */
 
                 echo "Docker 镜像构建成功"
 
@@ -252,7 +245,7 @@ pipeline {
 
 
         // ==================================================
-        // 6. 获取当前运行版本
+        // 6. 获取当前 3 个实例的版本
         // ==================================================
 
         stage('Get Current Version') {
@@ -268,46 +261,275 @@ pipeline {
 
                 script {
 
-                    def containerExists = sh(
-                        script: """
-                            docker ps -a \
-                            --filter "name=^/${CONTAINER_NAME}\$" \
-                            --format "{{.Names}}"
-                        """,
-                        returnStdout: true
-                    ).trim()
+                    echo "========================================"
+                    echo "检查当前运行实例"
+                    echo "========================================"
 
-                    if (containerExists) {
+                    for (int i = 1; i <= env.INSTANCE_COUNT.toInteger(); i++) {
 
-                        def previousImage = sh(
+                        def containerName =
+                            "${env.CONTAINER_PREFIX}-${i}"
+
+                        def exists = sh(
                             script: """
-                                docker inspect \
-                                --format='{{.Config.Image}}' \
-                                ${CONTAINER_NAME}
+                                docker ps -a \
+                                --filter "name=^/${containerName}\$" \
+                                --format "{{.Names}}"
                             """,
                             returnStdout: true
                         ).trim()
 
-                        PREVIOUS_IMAGE = previousImage
+                        if (exists) {
 
-                        echo "当前运行版本：${previousImage}"
+                            def image = sh(
+                                script: """
+                                    docker inspect \
+                                    --format='{{.Config.Image}}' \
+                                    ${containerName}
+                                """,
+                                returnStdout: true
+                            ).trim()
 
-                    } else {
+                            echo """
+                            ${containerName}
+                            当前版本：${image}
+                            """
 
-                        PREVIOUS_IMAGE = ''
+                            if (!PREVIOUS_IMAGE?.trim()) {
 
-                        echo "当前不存在旧容器，这是第一次部署"
+                                PREVIOUS_IMAGE = image
+                            }
+
+                        } else {
+
+                            echo "${containerName} 不存在"
+                        }
                     }
+
+                    echo "旧版本统一记录为：${PREVIOUS_IMAGE}"
                 }
             }
         }
 
 
         // ==================================================
-        // 7. 部署
+        // 7. 滚动发布
         // ==================================================
 
-        stage('Deploy') {
+        stage('Rolling Deploy') {
+
+            when {
+
+                expression {
+                    params.ACTION == 'DEPLOY'
+                }
+            }
+
+            steps {
+
+                script {
+
+                    echo """
+                    ========================================
+                    🚀 开始滚动发布
+                    ========================================
+
+                    新版本：
+                    ${IMAGE_FULL_NAME}
+
+                    实例数量：
+                    ${INSTANCE_COUNT}
+
+                    ========================================
+                    """
+
+                    def deployedInstances = []
+
+                    for (int i = 1; i <= env.INSTANCE_COUNT.toInteger(); i++) {
+
+                        def containerName =
+                            "${env.CONTAINER_PREFIX}-${i}"
+
+                        def newContainerName =
+                            "${containerName}-new"
+
+                        echo """
+                        ========================================
+                        发布实例 ${i}/${INSTANCE_COUNT}
+                        ========================================
+
+                        旧容器：
+                        ${containerName}
+
+                        新容器：
+                        ${newContainerName}
+
+                        ========================================
+                        """
+
+
+                        // ------------------------------------------
+                        // 清理可能残留的新容器
+                        // ------------------------------------------
+
+                        sh """
+                            docker rm -f ${newContainerName} || true
+                        """
+
+
+                        // ------------------------------------------
+                        // 启动新版本
+                        // ------------------------------------------
+
+                        sh """
+                            docker run -d \
+                                --name ${newContainerName} \
+                                --network ${DOCKER_NETWORK} \
+                                --restart unless-stopped \
+                                ${IMAGE_FULL_NAME}
+                        """
+
+                        echo "新实例启动成功：${newContainerName}"
+
+
+                        // ------------------------------------------
+                        // 健康检查
+                        // ------------------------------------------
+
+                        def success = false
+
+                        for (int retry = 1; retry <= 30; retry++) {
+
+                            echo """
+                            ${containerName}
+                            健康检查 ${retry}/30
+                            """
+
+                            def result = sh(
+                                script: """
+                                    docker run --rm \
+                                        --network ${DOCKER_NETWORK} \
+                                        curlimages/curl:8.10.1 \
+                                        -fsS \
+                                        http://${newContainerName}:${APP_PORT}${HEALTH_PATH}
+                                """,
+                                returnStatus: true
+                            )
+
+                            if (result == 0) {
+
+                                echo """
+                                ========================================
+                                ✅ ${newContainerName} 健康检查成功
+                                ========================================
+                                """
+
+                                success = true
+
+                                break
+                            }
+
+                            sleep 3
+                        }
+
+
+                        // ------------------------------------------
+                        // 健康检查失败
+                        // ------------------------------------------
+
+                        if (!success) {
+
+                            echo """
+                            ========================================
+                            ❌ ${newContainerName} 健康检查失败
+                            ========================================
+                            """
+
+                            sh """
+                                docker logs ${newContainerName} || true
+                                docker rm -f ${newContainerName} || true
+                            """
+
+                            error """
+                            ${newContainerName} 发布失败！
+                            停止滚动发布。
+                            """
+                        }
+
+
+                        // ------------------------------------------
+                        // 新实例健康后
+                        // 才删除旧实例
+                        // ------------------------------------------
+
+                        def oldExists = sh(
+                            script: """
+                                docker ps -a \
+                                --filter "name=^/${containerName}\$" \
+                                --format "{{.Names}}"
+                            """,
+                            returnStdout: true
+                        ).trim()
+
+                        if (oldExists) {
+
+                            echo "停止旧实例：${containerName}"
+
+                            sh """
+                                docker stop ${containerName} || true
+                                docker rm ${containerName} || true
+                            """
+                        }
+
+
+                        // ------------------------------------------
+                        // 新实例改名
+                        // ------------------------------------------
+
+                        sh """
+                            docker rename \
+                                ${newContainerName} \
+                                ${containerName}
+                        """
+
+                        echo """
+                        ========================================
+                        ✅ 实例 ${i} 发布完成
+                        ========================================
+                        """
+
+                        deployedInstances.add(containerName)
+
+                        DEPLOYED_INSTANCES =
+                            deployedInstances.join(',')
+
+                        // 给 Dubbo / ZooKeeper 一点时间
+                        sleep 5
+                    }
+
+
+                    echo """
+                    ========================================
+                    🎉 滚动发布完成
+                    ========================================
+
+                    ${DEPLOYED_INSTANCES}
+
+                    当前版本：
+                    ${IMAGE_FULL_NAME}
+
+                    ========================================
+                    """
+                }
+            }
+        }
+
+
+        // ==================================================
+        // 8. 最终集群检查
+        // ==================================================
+
+        stage('Cluster Health Check') {
 
             when {
 
@@ -321,70 +543,13 @@ pipeline {
                 script {
 
                     echo "========================================"
-                    echo "开始部署"
-                    echo "新版本：${IMAGE_FULL_NAME}"
-                    echo "旧版本：${PREVIOUS_IMAGE}"
+                    echo "开始检查 3 个实例"
                     echo "========================================"
 
+                    for (int i = 1; i <= env.INSTANCE_COUNT.toInteger(); i++) {
 
-                    // 删除旧容器
-                    sh """
-                        docker rm -f ${CONTAINER_NAME} || true
-                    """
-
-                    env.OLD_CONTAINER_STOPPED = 'true'
-
-
-                    // 启动新容器
-                    sh """
-                        docker run -d \
-                            --name ${CONTAINER_NAME} \
-                            --network ${DOCKER_NETWORK} \
-                            -p 8088:8080 \
-                            --restart unless-stopped \
-                            ${IMAGE_FULL_NAME}
-                    """
-
-
-                    echo "新容器启动完成"
-
-                    sh """
-                        docker ps \
-                            --filter "name=${CONTAINER_NAME}"
-                    """
-                }
-            }
-        }
-
-
-        // ==================================================
-        // 8. 健康检查
-        // ==================================================
-
-        stage('Health Check') {
-
-            when {
-
-                expression {
-                    params.ACTION == 'DEPLOY'
-                }
-            }
-
-            steps {
-
-                script {
-
-                    echo "开始健康检查..."
-
-                    def maxRetry = 30
-
-                    def success = false
-
-
-                    for (int i = 1; i <= maxRetry; i++) {
-
-                        echo "健康检查 ${i}/${maxRetry}"
-
+                        def containerName =
+                            "${env.CONTAINER_PREFIX}-${i}"
 
                         def result = sh(
                             script: """
@@ -392,42 +557,32 @@ pipeline {
                                     --network ${DOCKER_NETWORK} \
                                     curlimages/curl:8.10.1 \
                                     -fsS \
-                                    http://${CONTAINER_NAME}:${APP_PORT}${HEALTH_PATH}
+                                    http://${containerName}:${APP_PORT}${HEALTH_PATH}
                             """,
                             returnStatus: true
                         )
 
+                        if (result != 0) {
 
-                        if (result == 0) {
+                            error """
+                            ========================================
+                            ❌ 集群健康检查失败
 
-                            echo "========================================"
-                            echo "健康检查成功"
-                            echo "========================================"
+                            实例：
+                            ${containerName}
 
-                            success = true
-
-                            break
-
-                        } else {
-
-                            echo "应用还没有准备好，等待 3 秒..."
-
-                            sleep 3
+                            ========================================
+                            """
                         }
+
+                        echo "✅ ${containerName} 正常"
                     }
 
-
-                    if (!success) {
-
-                        error """
-                        ========================================
-                        健康检查失败
-                        ========================================
-                        应用版本：${IMAGE_FULL_NAME}
-
-                        Jenkins 将自动执行回滚。
-                        """
-                    }
+                    echo """
+                    ========================================
+                    🎉 3 个实例全部健康
+                    ========================================
+                    """
                 }
             }
         }
@@ -452,7 +607,7 @@ pipeline {
 
                     echo """
                     ========================================
-                    🚀 部署成功
+                    🚀 滚动发布成功
                     ========================================
 
                     应用：
@@ -460,6 +615,12 @@ pipeline {
 
                     Docker：
                     ${IMAGE_FULL_NAME}
+
+                    实例：
+
+                    ${CONTAINER_PREFIX}-1
+                    ${CONTAINER_PREFIX}-2
+                    ${CONTAINER_PREFIX}-3
 
                     Previous：
                     ${PREVIOUS_IMAGE}
@@ -472,7 +633,7 @@ pipeline {
 
 
         // ==================================================
-        // 10. 回滚版本检查
+        // 10. 检查回滚镜像
         // ==================================================
 
         stage('Check Rollback Image') {
@@ -488,18 +649,19 @@ pipeline {
 
                 script {
 
-                    echo "检查回滚镜像：${params.ROLLBACK_VERSION}"
+                    def rollbackImage =
+                        "${IMAGE_NAME}:${params.ROLLBACK_VERSION}"
 
+                    echo "检查回滚镜像：${rollbackImage}"
 
                     def imageExists = sh(
                         script: """
                             docker image inspect \
-                            ${IMAGE_NAME}:${params.ROLLBACK_VERSION}
+                            ${rollbackImage} \
                             > /dev/null 2>&1
                         """,
                         returnStatus: true
                     )
-
 
                     if (imageExists != 0) {
 
@@ -510,14 +672,11 @@ pipeline {
 
                         Docker 镜像不存在：
 
-                        ${IMAGE_NAME}:${params.ROLLBACK_VERSION}
+                        ${rollbackImage}
 
-                        当前 Docker 镜像：
-
+                        ========================================
                         """
-
                     }
-
 
                     echo "回滚镜像存在，可以执行回滚"
                 }
@@ -545,10 +704,9 @@ pipeline {
                     def rollbackImage =
                         "${IMAGE_NAME}:${params.ROLLBACK_VERSION}"
 
-
                     echo """
                     ========================================
-                    开始回滚
+                    🔄 开始回滚
                     ========================================
 
                     回滚目标：
@@ -557,83 +715,97 @@ pipeline {
                     ========================================
                     """
 
+                    for (int i = 1; i <= env.INSTANCE_COUNT.toInteger(); i++) {
 
-                    // 删除当前容器
-                    sh """
-                        docker rm -f ${CONTAINER_NAME} || true
-                    """
+                        def containerName =
+                            "${env.CONTAINER_PREFIX}-${i}"
 
+                        def rollbackContainer =
+                            "${containerName}-rollback"
 
-                    // 启动历史版本
-                    sh """
-                        docker run -d \
-                            --name ${CONTAINER_NAME} \
-                            --network ${DOCKER_NETWORK} \
-                            -p 8088:8080 \
-                            --restart unless-stopped \
-                            ${rollbackImage}
-                    """
+                        echo "回滚实例：${containerName}"
 
+                        // 清理临时容器
+                        sh """
+                            docker rm -f ${rollbackContainer} || true
+                        """
 
-                    echo "回滚容器启动完成"
+                        // 启动回滚版本
+                        sh """
+                            docker run -d \
+                                --name ${rollbackContainer} \
+                                --network ${DOCKER_NETWORK} \
+                                --restart unless-stopped \
+                                ${rollbackImage}
+                        """
 
+                        // 健康检查
+                        def success = false
 
-                    // 健康检查
-                    def success = false
+                        for (int retry = 1; retry <= 30; retry++) {
 
+                            echo """
+                            ${containerName}
+                            回滚健康检查 ${retry}/30
+                            """
 
-                    for (int i = 1; i <= 30; i++) {
+                            def result = sh(
+                                script: """
+                                    docker run --rm \
+                                        --network ${DOCKER_NETWORK} \
+                                        curlimages/curl:8.10.1 \
+                                        -fsS \
+                                        http://${rollbackContainer}:${APP_PORT}${HEALTH_PATH}
+                                """,
+                                returnStatus: true
+                            )
 
-                        echo "回滚健康检查 ${i}/30"
+                            if (result == 0) {
 
+                                success = true
 
-                        def result = sh(
-                            script: """
-                                docker run --rm \
-                                    --network ${DOCKER_NETWORK} \
-                                    curlimages/curl:8.10.1 \
-                                    -fsS \
-                                    http://${CONTAINER_NAME}:${APP_PORT}${HEALTH_PATH}
-                            """,
-                            returnStatus: true
-                        )
+                                break
+                            }
 
-
-                        if (result == 0) {
-
-                            success = true
-
-                            echo "回滚健康检查成功"
-
-                            break
-
+                            sleep 3
                         }
 
+                        if (!success) {
 
-                        sleep 3
-                    }
+                            sh """
+                                docker logs ${rollbackContainer} || true
+                                docker rm -f ${rollbackContainer} || true
+                            """
 
+                            error """
+                            ${containerName} 回滚失败！
+                            """
+                        }
 
-                    if (!success) {
-
-                        error """
-                        ========================================
-                        回滚失败！
-                        ========================================
-
-                        ${rollbackImage}
-
-                        启动后健康检查仍然失败。
+                        // 删除当前实例
+                        sh """
+                            docker rm -f ${containerName} || true
                         """
-                    }
 
+                        // 改名
+                        sh """
+                            docker rename \
+                                ${rollbackContainer} \
+                                ${containerName}
+                        """
+
+                        echo "✅ ${containerName} 回滚成功"
+
+                        sleep 5
+                    }
 
                     echo """
                     ========================================
-                    🔄 回滚成功
+                    🔄 全部实例回滚成功
                     ========================================
 
                     当前版本：
+
                     ${rollbackImage}
 
                     ========================================
@@ -650,11 +822,6 @@ pipeline {
 
     post {
 
-
-        // ==================================================
-        // 成功
-        // ==================================================
-
         success {
 
             echo """
@@ -666,23 +833,22 @@ pipeline {
 
 
         // ==================================================
-        // 自动回滚
+        // DEPLOY 失败
         // ==================================================
 
         failure {
 
             script {
 
-                if (
-                    params.ACTION == 'DEPLOY' &&
-                    env.OLD_CONTAINER_STOPPED == 'true' &&
-                    env.PREVIOUS_IMAGE?.trim()
-                ) {
+                if (params.ACTION == 'DEPLOY') {
 
                     echo """
                     ========================================
-                    ⚠️ 新版本部署失败
+                    ⚠️ 滚动发布失败
                     ========================================
+
+                    已经发布成功的实例：
+                    ${DEPLOYED_INSTANCES}
 
                     开始自动回滚：
 
@@ -691,120 +857,131 @@ pipeline {
                     ========================================
                     """
 
+                    if (PREVIOUS_IMAGE?.trim()) {
 
-                    try {
+                        try {
 
-                        // 删除失败的新版本
-                        sh """
-                            docker rm -f ${CONTAINER_NAME} || true
-                        """
+                            for (int i = 1; i <= env.INSTANCE_COUNT.toInteger(); i++) {
 
+                                def containerName =
+                                    "${env.CONTAINER_PREFIX}-${i}"
 
-                        // 启动旧版本
-                        sh """
-                            docker run -d \
-                                --name ${CONTAINER_NAME} \
-                                --network ${DOCKER_NETWORK} \
-                                -p 8088:8080 \
-                                --restart unless-stopped \
-                                ${PREVIOUS_IMAGE}
-                        """
+                                def rollbackContainer =
+                                    "${containerName}-auto-rollback"
 
+                                echo "自动恢复：${containerName}"
 
-                        echo "旧版本启动成功"
+                                // 清理临时容器
+                                sh """
+                                    docker rm -f ${rollbackContainer} || true
+                                """
 
-
-                        // 回滚健康检查
-                        def rollbackSuccess = false
-
-
-                        for (int i = 1; i <= 30; i++) {
-
-                            echo "自动回滚健康检查 ${i}/30"
-
-
-                            def result = sh(
-                                script: """
-                                    docker run --rm \
+                                // 启动旧版本
+                                sh """
+                                    docker run -d \
+                                        --name ${rollbackContainer} \
                                         --network ${DOCKER_NETWORK} \
-                                        curlimages/curl:8.10.1 \
-                                        -fsS \
-                                        http://${CONTAINER_NAME}:${APP_PORT}${HEALTH_PATH}
-                                """,
-                                returnStatus: true
-                            )
+                                        --restart unless-stopped \
+                                        ${PREVIOUS_IMAGE}
+                                """
 
+                                // 健康检查
+                                def rollbackSuccess = false
 
-                            if (result == 0) {
+                                for (int retry = 1; retry <= 30; retry++) {
 
-                                rollbackSuccess = true
+                                    echo """
+                                    自动回滚：
 
-                                break
+                                    ${containerName}
+
+                                    健康检查 ${retry}/30
+                                    """
+
+                                    def result = sh(
+                                        script: """
+                                            docker run --rm \
+                                                --network ${DOCKER_NETWORK} \
+                                                curlimages/curl:8.10.1 \
+                                                -fsS \
+                                                http://${rollbackContainer}:${APP_PORT}${HEALTH_PATH}
+                                        """,
+                                        returnStatus: true
+                                    )
+
+                                    if (result == 0) {
+
+                                        rollbackSuccess = true
+
+                                        break
+                                    }
+
+                                    sleep 3
+                                }
+
+                                if (!rollbackSuccess) {
+
+                                    sh """
+                                        docker logs ${rollbackContainer} || true
+                                        docker rm -f ${rollbackContainer} || true
+                                    """
+
+                                    echo """
+                                    ❌ ${containerName}
+                                    自动回滚失败
+                                    """
+
+                                    continue
+                                }
+
+                                // 删除当前实例
+                                sh """
+                                    docker rm -f ${containerName} || true
+                                """
+
+                                // 恢复原名称
+                                sh """
+                                    docker rename \
+                                        ${rollbackContainer} \
+                                        ${containerName}
+                                """
+
+                                echo """
+                                ✅ ${containerName}
+                                自动回滚成功
+                                """
+
+                                sleep 5
                             }
 
-
-                            sleep 3
-                        }
-
-
-                        if (rollbackSuccess) {
-
                             echo """
                             ========================================
-                            🔄 自动回滚成功
-                            ========================================
-
-                            恢复版本：
-
-                            ${PREVIOUS_IMAGE}
-
+                            🔄 自动回滚执行完成
                             ========================================
                             """
 
-                        } else {
+                        } catch (Exception e) {
 
                             echo """
                             ========================================
-                            ❌ 自动回滚失败
+                            ❌ 自动回滚过程中发生异常
+                            ========================================
 
-                            恢复版本：
+                            ${e.getMessage()}
 
-                            ${PREVIOUS_IMAGE}
                             ========================================
                             """
                         }
 
-
-                    } catch (Exception e) {
+                    } else {
 
                         echo """
                         ========================================
-                        ❌ 自动回滚过程中发生异常
-                        ========================================
-
-                        ${e.getMessage()}
-
+                        第一次部署，没有旧版本
+                        无法执行自动回滚
                         ========================================
                         """
                     }
-
-
-                } else {
-
-                    echo """
-                    ========================================
-                    Pipeline 执行失败
-
-                    没有执行自动回滚。
-
-                    可能原因：
-                    1. 第一次部署
-                    2. 旧容器不存在
-                    3. 没有获取到旧版本
-                    4. 回滚条件不满足
-
-                    ========================================
-                    """
                 }
             }
         }
@@ -820,7 +997,7 @@ pipeline {
 
             sh """
                 docker ps -a \
-                    --filter "name=${CONTAINER_NAME}" \
+                    --filter "name=${CONTAINER_PREFIX}" \
                     || true
             """
         }
