@@ -295,7 +295,7 @@ pipeline {
                             当前版本：${image}
                             """
 
-                            if (!PREVIOUS_IMAGE?.trim()) {
+                            if (!env.PREVIOUS_IMAGE?.trim()) {
 
                                 PREVIOUS_IMAGE = image
                             }
@@ -500,8 +500,7 @@ pipeline {
 
                         deployedInstances.add(containerName)
 
-                        DEPLOYED_INSTANCES =
-                            deployedInstances.join(',')
+                        DEPLOYED_INSTANCES = deployedInstances.join(',')
 
                         // 给 Dubbo / ZooKeeper 一点时间
                         sleep 5
