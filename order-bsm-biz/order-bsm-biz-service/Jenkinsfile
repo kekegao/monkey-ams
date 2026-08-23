@@ -58,7 +58,7 @@ pipeline {
         // 发布过程中记录
         // =========================
 
-        PREVIOUS_IMAGE = ""
+        PREVIOUS_IMAGE = "order-bsm-biz-service:1.0.0"
 
         DEPLOYED_INSTANCES = ""
 
