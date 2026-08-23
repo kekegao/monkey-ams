@@ -295,7 +295,7 @@ pipeline {
                             当前版本：${image}
                             """
 
-                            if (!env.PREVIOUS_IMAGE?.trim()) {
+                            if (!PREVIOUS_IMAGE?.trim()) {
 
                                 PREVIOUS_IMAGE = image
                             }
