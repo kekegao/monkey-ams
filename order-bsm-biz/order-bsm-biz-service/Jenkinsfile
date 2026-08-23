@@ -301,12 +301,10 @@ pipeline {
                             }
 
                         } else {
-
-                            echo "${containerName} 不存在"
+                            echo "当前不存在旧容器，这是第一次部署"
                         }
                     }
 
-                    echo "旧版本统一记录为：${PREVIOUS_IMAGE}"
                 }
             }
         }
