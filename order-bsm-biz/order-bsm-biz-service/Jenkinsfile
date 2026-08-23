@@ -510,7 +510,7 @@ pipeline {
                     🎉 滚动发布完成
                     ========================================
 
-                    ${DEPLOYED_INSTANCES}
+                    ${env.DEPLOYED_INSTANCES}
 
                     当前版本：
                     ${IMAGE_FULL_NAME}
@@ -620,7 +620,7 @@ pipeline {
                     ${CONTAINER_PREFIX}-3
 
                     Previous：
-                    ${PREVIOUS_IMAGE}
+                    ${env.PREVIOUS_IMAGE}
 
                     ========================================
                     """
@@ -845,11 +845,11 @@ pipeline {
                     ========================================
 
                     已经发布成功的实例：
-                    ${DEPLOYED_INSTANCES}
+                    ${env.DEPLOYED_INSTANCES}
 
                     开始自动回滚：
 
-                    ${PREVIOUS_IMAGE}
+                    ${env.PREVIOUS_IMAGE}
 
                     ========================================
                     """
@@ -879,7 +879,7 @@ pipeline {
                                         --name ${rollbackContainer} \
                                         --network ${DOCKER_NETWORK} \
                                         --restart unless-stopped \
-                                        ${PREVIOUS_IMAGE}
+                                        ${env.PREVIOUS_IMAGE}
                                 """
 
                                 // 健康检查
