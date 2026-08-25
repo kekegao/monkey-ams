@@ -1,8 +1,12 @@
 package com.monkey.order.bsm.biz.mapper;
 
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
+import com.monkey.order.bsm.biz.dto.OrderDto;
 import com.monkey.order.bsm.biz.entity.Order;
 import org.apache.ibatis.annotations.Mapper;
+
+import java.util.List;
+import java.util.Map;
 
 /**
  * <p>
@@ -14,5 +18,8 @@ import org.apache.ibatis.annotations.Mapper;
  */
 @Mapper
 public interface OrderMapper extends BaseMapper<Order> {
+
+
+    List<OrderDto> selectListByCondition(Map<String, Object> condition);
 
 }

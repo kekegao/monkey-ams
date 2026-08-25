@@ -13,6 +13,17 @@
         <result column="carrier_user_id" property="carrierUserId" />
         <result column="carrier_name" property="carrierName" />
         <result column="carrier_mobile" property="carrierMobile" />
+        <result column="goods_type" property="goodsType" />
+        <result column="goods_description" property="goodsDescription" />
+        <result column="goods_weight" property="goodsWeight" />
+        <result column="shipper_province" property="shipperProvince" />
+        <result column="shipper_city" property="shipperCity" />
+        <result column="shipper_area" property="shipperArea" />
+        <result column="shipper_address" property="shipperAddress" />
+        <result column="carrier_province" property="carrierProvince" />
+        <result column="carrier_city" property="carrierCity" />
+        <result column="carrier_area" property="carrierArea" />
+        <result column="carrier_address" property="carrierAddress" />
         <result column="delete_flag" property="deleteFlag" />
         <result column="create_time" property="createTime" />
         <result column="update_time" property="updateTime" />
@@ -22,5 +33,9 @@
     <sql id="Base_Column_List">
         id, order_id, status, shipper_user_id, shipper_name, shipper_mobile, carrier_user_id, carrier_name, carrier_mobile, delete_flag, create_time, update_time
     </sql>
+
+    <select id="selectListByCondition" resultType="com.monkey.order.bsm.biz.dto.OrderDto">
+
+    </select>
 
 </mapper>

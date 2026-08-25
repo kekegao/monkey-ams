@@ -10,6 +10,7 @@ import lombok.ToString;
 import lombok.experimental.Accessors;
 
 import java.io.Serializable;
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.Date;
 
@@ -19,7 +20,7 @@ import java.util.Date;
  * </p>
  *
  * @author gkk
- * @since 2026-08-17
+ * @since 2026-08-25
  */
 @Getter
 @Setter
@@ -43,7 +44,7 @@ public class Order implements Serializable {
     private String orderId;
 
     /**
-     * 订单状态
+     * 订单状态 1发布-2摘单-3成交-4发货-5确认收货-6回单确认-7结算申请-8结算-9对账-10发票
      */
     @TableField("status")
     private Integer status;
@@ -53,6 +54,12 @@ public class Order implements Serializable {
      */
     @TableField("shipper_user_id")
     private String shipperUserId;
+
+    /**
+     * 货主用户名称
+     */
+    @TableField("shipper_user_name")
+    private String shipperUserName;
 
     /**
      * 货主名称
@@ -73,6 +80,12 @@ public class Order implements Serializable {
     private String carrierUserId;
 
     /**
+     * 承运方用户名称
+     */
+    @TableField("carrier_user_name")
+    private String carrierUserName;
+
+    /**
      * 承运方名称
      */
     @TableField("carrier_name")
@@ -83,6 +96,72 @@ public class Order implements Serializable {
      */
     @TableField("carrier_mobile")
     private String carrierMobile;
+
+    /**
+     * 物品类型，例如建材，钢铁，煤炭
+     */
+    @TableField("goods_type")
+    private String goodsType;
+
+    /**
+     * 物品描述
+     */
+    @TableField("goods_description")
+    private String goodsDescription;
+
+    /**
+     * 物品重量
+     */
+    @TableField("goods_weight")
+    private BigDecimal goodsWeight;
+
+    /**
+     * 发货源省市区-省份
+     */
+    @TableField("shipper_province")
+    private String shipperProvince;
+
+    /**
+     * 发货源省市区-城市
+     */
+    @TableField("shipper_city")
+    private String shipperCity;
+
+    /**
+     * 发货源省市区-地区
+     */
+    @TableField("shipper_area")
+    private String shipperArea;
+
+    /**
+     * 发货源省市区-详细地址
+     */
+    @TableField("shipper_address")
+    private String shipperAddress;
+
+    /**
+     * 收货地省市区-省份
+     */
+    @TableField("carrier_province")
+    private String carrierProvince;
+
+    /**
+     * 收货地省市区-城市
+     */
+    @TableField("carrier_city")
+    private String carrierCity;
+
+    /**
+     * 收货地省市区-地区
+     */
+    @TableField("carrier_area")
+    private String carrierArea;
+
+    /**
+     * 收货地省市区-详细地址
+     */
+    @TableField("carrier_address")
+    private String carrierAddress;
 
     /**
      * 删除标记：0正常，1已删除

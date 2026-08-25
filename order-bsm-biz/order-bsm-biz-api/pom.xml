@@ -17,4 +17,12 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     </properties>
 
+    <dependencies>
+        <dependency>
+            <groupId>com.monkey</groupId>
+            <artifactId>ams-common</artifactId>
+            <version>${ams-common.version}</version>
+        </dependency>
+    </dependencies>
+
 </project>

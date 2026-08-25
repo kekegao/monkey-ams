@@ -38,6 +38,11 @@
             <artifactId>spring-boot-starter-web</artifactId>
         </dependency>
 
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-actuator</artifactId>
+        </dependency>
+
 
         <dependency>
             <groupId>org.springframework.boot</groupId>
@@ -96,12 +101,6 @@
             <groupId>com.monkey</groupId>
             <artifactId>order-bsm-biz-api</artifactId>
             <version>${order-bsm-biz-api.version}</version>
-        </dependency>
-
-        <dependency>
-            <groupId>com.monkey</groupId>
-            <artifactId>ams-common</artifactId>
-            <version>${ams-common.version}</version>
         </dependency>
 
         <dependency>

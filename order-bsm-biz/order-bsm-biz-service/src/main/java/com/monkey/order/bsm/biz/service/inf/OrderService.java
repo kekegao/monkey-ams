@@ -2,7 +2,10 @@ package com.monkey.order.bsm.biz.service.inf;
 
 
 import com.baomidou.mybatisplus.spring.service.IService;
+import com.monkey.ams.common.response.Result;
 import com.monkey.order.bsm.biz.entity.Order;
+
+import java.util.Map;
 
 /**
  * <p>
@@ -14,5 +17,11 @@ import com.monkey.order.bsm.biz.entity.Order;
  */
 public interface OrderService extends IService<Order> {
 
+    /**
+     * 发布运单
+     * @param order
+     * @return
+     */
+    boolean publishOrder(Order order);
 
 }
