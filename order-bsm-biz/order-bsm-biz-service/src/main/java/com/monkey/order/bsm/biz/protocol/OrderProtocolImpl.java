@@ -1,5 +1,6 @@
 package com.monkey.order.bsm.biz.protocol;
 
+import com.monkey.ams.common.response.Result;
 import com.monkey.ams.common.utils.SnowflakeIdWorker;
 import com.monkey.order.bsm.biz.annotation.DistributedLock;
 import com.monkey.order.bsm.biz.entity.Order;
@@ -28,6 +29,15 @@ public class OrderProtocolImpl implements OrderProtocol {
 
     @Autowired
     private SnowflakeIdWorker idService;
+
+
+    @DistributedLock(key = "'order:create:' + #param['orderId']", waitTime = 3, leaseTime = -1)
+    @Override
+    public Result publishOrder(Map<String, Object> param) {
+
+
+        return null;
+    }
 
     @Override
     @DistributedLock(key = "'order:create:' + #param['orderId']", waitTime = 3, leaseTime = -1)

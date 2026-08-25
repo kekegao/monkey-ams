@@ -104,12 +104,6 @@
         </dependency>
 
         <dependency>
-            <groupId>com.monkey</groupId>
-            <artifactId>ams-common</artifactId>
-            <version>${ams-common.version}</version>
-        </dependency>
-
-        <dependency>
             <groupId>org.redisson</groupId>
             <artifactId>redisson-spring-boot-starter</artifactId>
             <version>3.52.0</version>
