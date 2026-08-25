@@ -44,7 +44,7 @@ public class Order implements Serializable {
     private String orderId;
 
     /**
-     * 订单状态
+     * 订单状态 1发布-2摘单-3成交-4发货-5确认收货-6回单确认-7结算申请-8结算-9对账-10发票
      */
     @TableField("status")
     private Integer status;
@@ -54,6 +54,12 @@ public class Order implements Serializable {
      */
     @TableField("shipper_user_id")
     private String shipperUserId;
+
+    /**
+     * 货主用户名称
+     */
+    @TableField("shipper_user_name")
+    private String shipperUserName;
 
     /**
      * 货主名称
@@ -72,6 +78,12 @@ public class Order implements Serializable {
      */
     @TableField("carrier_user_id")
     private String carrierUserId;
+
+    /**
+     * 承运方用户名称
+     */
+    @TableField("carrier_user_name")
+    private String carrierUserName;
 
     /**
      * 承运方名称

@@ -35,6 +35,8 @@
         <module>order-bsm-biz</module>
         <module>acq-bsm-biz</module>
         <module>ams-common</module>
+        <module>ams-app</module>
+        <module>user-bsm-biz</module>
     </modules>
 
     <dependencyManagement>
