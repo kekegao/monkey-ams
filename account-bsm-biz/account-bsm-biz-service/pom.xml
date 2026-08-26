@@ -4,13 +4,13 @@
     <modelVersion>4.0.0</modelVersion>
     <parent>
         <groupId>com.monkey</groupId>
-        <artifactId>user-bsm-biz</artifactId>
+        <artifactId>account-bsm-biz</artifactId>
         <version>1.0.0-SNAPSHOT</version>
     </parent>
-    <artifactId>user-bsm-biz-service</artifactId>
+    <artifactId>account-bsm-biz-service</artifactId>
     <version>0.0.1-SNAPSHOT</version>
-    <name>user-bsm-biz-service</name>
-    <description>user-bsm-biz-service</description>
+    <name>account-bsm-biz-service</name>
+    <description>account-bsm-biz-service</description>
     <url/>
     <licenses>
         <license/>
@@ -35,26 +35,13 @@
 
         <dependency>
             <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-web</artifactId>
-        </dependency>
-
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-test</artifactId>
             <scope>test</scope>
         </dependency>
 
         <dependency>
-            <groupId>com.mysql</groupId>
-            <artifactId>mysql-connector-j</artifactId>
-            <scope>runtime</scope>
-        </dependency>
-
-        <!-- MyBatis-Plus -->
-        <dependency>
-            <groupId>com.baomidou</groupId>
-            <artifactId>mybatis-plus-spring-boot3-starter</artifactId>
-            <version>3.5.17</version>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-web</artifactId>
         </dependency>
 
         <!-- Dubbo -->
@@ -67,12 +54,6 @@
             <groupId>org.apache.dubbo</groupId>
             <artifactId>dubbo-zookeeper-spring-boot-starter</artifactId>
             <version>3.3.0</version>
-        </dependency>
-
-        <dependency>
-            <groupId>com.monkey</groupId>
-            <artifactId>user-bsm-biz-api</artifactId>
-            <version>${user-bsm-biz-api.version}</version>
         </dependency>
 
         <dependency>

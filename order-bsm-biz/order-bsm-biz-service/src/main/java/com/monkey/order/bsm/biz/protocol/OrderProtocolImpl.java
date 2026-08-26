@@ -20,7 +20,7 @@ import java.util.Map;
 
 
 @Slf4j
-@DubboService(version = "1.0.0", group = "dev", timeout = 5000)
+@DubboService(version = "1.0.0", group = "${dubbo.service.group}", timeout = 5000)
 public class OrderProtocolImpl implements OrderProtocol {
 
     @Autowired
