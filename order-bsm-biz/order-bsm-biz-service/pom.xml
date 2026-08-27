@@ -103,21 +103,11 @@
             <version>${order-bsm-biz-api.version}</version>
         </dependency>
 
-        <dependency>
-            <groupId>org.redisson</groupId>
-            <artifactId>redisson-spring-boot-starter</artifactId>
-            <version>3.52.0</version>
-        </dependency>
 
         <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-aop</artifactId>
-        </dependency>
-
-        <dependency>
-            <groupId>org.apache.dubbo</groupId>
-            <artifactId>dubbo</artifactId>
-            <version>3.2.0</version>
+            <groupId>com.monkey</groupId>
+            <artifactId>monkey-common-lock</artifactId>
+            <version>${monkey-common-lock.version}</version>
         </dependency>
 
 

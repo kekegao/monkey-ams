@@ -1,6 +1,7 @@
 package com.monkey.order.bsm.biz;
 
 
+import com.ctrip.framework.apollo.spring.annotation.EnableApolloConfig;
 import org.apache.dubbo.config.spring.context.annotation.EnableDubbo;
 import org.mybatis.spring.annotation.MapperScan;
 import org.springframework.boot.SpringApplication;
@@ -10,7 +11,7 @@ import org.springframework.context.annotation.ImportResource;
 
 @ImportResource("classpath:dubbo/dubbo-provider.xml")
 @SpringBootApplication
-@ComponentScan(basePackages = {"com.monkey.order.bsm.biz","com.monkey.ams.common"})
+@ComponentScan(basePackages = {"com.monkey.order.bsm.biz","com.monkey.ams.common","com.monkey.common.lock"})
 @MapperScan("com.monkey.order.bsm.biz")
 @EnableDubbo
 public class OrderBsmBizServiceApplication {

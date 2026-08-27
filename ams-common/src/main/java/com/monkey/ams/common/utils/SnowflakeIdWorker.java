@@ -105,4 +105,31 @@ public class SnowflakeIdWorker {
     private long timeGen() {
         return System.currentTimeMillis();
     }
+
+    /** 62进制字符集（数字 + 大小写字母），用于生成用户名 */
+    private static final char[] BASE62_CHARS =
+            "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ".toCharArray();
+
+    /** 用户名固定长度 */
+    private static final int USERNAME_LENGTH = 12;
+
+    /**
+     * 生成用户名：字母 + 数字组合，固定12位，基于雪花ID转62进制保证唯一
+     *
+     * @return 12位用户名
+     */
+    public String generateUserName() {
+        long id = Long.parseLong(nextId());
+        StringBuilder sb = new StringBuilder();
+        // 雪花ID为64位long，转62进制最多11位，左侧补'0'至12位，完整保留唯一性
+        while (id > 0 && sb.length() < USERNAME_LENGTH) {
+            sb.append(BASE62_CHARS[(int) (id % 62)]);
+            id /= 62;
+        }
+        // 不足12位时左侧补 '0'
+        while (sb.length() < USERNAME_LENGTH) {
+            sb.append('0');
+        }
+        return sb.reverse().toString();
+    }
 }

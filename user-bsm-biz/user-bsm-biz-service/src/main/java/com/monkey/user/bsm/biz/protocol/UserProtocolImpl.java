@@ -1,5 +1,6 @@
 package com.monkey.user.bsm.biz.protocol;
 
+import com.alibaba.fastjson.JSONObject;
 import com.monkey.account.bsm.biz.api.AccountProtocol;
 import com.monkey.ams.common.response.Result;
 import com.monkey.ams.common.utils.PasswordUtil;
@@ -23,12 +24,12 @@ import java.util.Objects;
  * @author gkk
  */
 @Slf4j
-@DubboService(version = "1.0.0", group = "dev", timeout = 5000)
+@DubboService
 public class UserProtocolImpl implements UserProtocol {
 
     private static final String REGEX_MOBILE = "^1[3-9]\\d{9}$";
 
-    @DubboReference(version = "1.0.0", group = "dev", timeout = 5000)
+    @DubboReference
     private AccountProtocol accountProtocol;
 
     @Autowired
@@ -61,15 +62,20 @@ public class UserProtocolImpl implements UserProtocol {
 
         // 3. 生成用户ID、加密密码、入库
         UserEntity entity = new UserEntity();
-        entity.setUserId(Long.parseLong(idService.nextId()));
-        entity.setUserName(StringUtils.hasText(user.getUserName())
-                ? user.getUserName()
-                : "用户" + user.getMobile().substring(7));
+        entity.setUserId(idService.nextId());
+        entity.setUserName(idService.generateUserName());
         entity.setMobile(user.getMobile());
         entity.setPassword(user.getPassword());
         entity.setCreateTime(new Date());
         userService.save(entity);
         log.info("用户注册成功: mobile={}", user.getMobile());
+
+        JSONObject jsonObject = new JSONObject();
+        jsonObject.put("mobile", user.getMobile());
+        jsonObject.put("userId", entity.getUserId());
+        jsonObject.put("userName", entity.getUserName());
+
+        accountProtocol.openAccount(jsonObject);
 
         return Result.success("注册成功", toUser(entity));
     }

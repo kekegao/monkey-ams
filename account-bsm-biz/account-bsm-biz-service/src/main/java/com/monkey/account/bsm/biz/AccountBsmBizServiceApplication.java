@@ -1,4 +1,4 @@
-package com.monkey.account.bsm.biz.service;
+package com.monkey.account.bsm.biz;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;

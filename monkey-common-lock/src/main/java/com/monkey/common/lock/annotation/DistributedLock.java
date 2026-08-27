@@ -1,4 +1,4 @@
-package com.monkey.order.bsm.biz.annotation;
+package com.monkey.common.lock.annotation;
 
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;

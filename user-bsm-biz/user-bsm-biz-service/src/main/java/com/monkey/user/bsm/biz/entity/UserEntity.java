@@ -22,7 +22,7 @@ public class UserEntity implements Serializable {
 
     /** 用户ID（雪花算法生成） */
     @TableId(value = "user_id", type = IdType.INPUT)
-    private Long userId;
+    private String userId;
 
     /** 用户名 */
     @TableField("user_name")

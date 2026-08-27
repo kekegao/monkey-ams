@@ -3,17 +3,15 @@ package com.monkey.order.bsm.biz.protocol;
 import com.monkey.ams.common.response.Result;
 import com.monkey.ams.common.utils.SnowflakeIdWorker;
 import com.monkey.ams.common.utils.StringGenerateUtil;
-import com.monkey.order.bsm.biz.annotation.DistributedLock;
+import com.monkey.common.lock.annotation.DistributedLock;
 import com.monkey.order.bsm.biz.entity.Order;
 import com.monkey.order.bsm.biz.service.inf.OrderService;
-
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.dubbo.config.annotation.DubboService;
 import org.redisson.api.RBucket;
 import org.redisson.api.RedissonClient;
 import org.springframework.beans.factory.annotation.Autowired;
-
 import java.math.BigDecimal;
 import java.util.Date;
 import java.util.Map;

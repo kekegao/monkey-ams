@@ -1,27 +1,24 @@
-package com.monkey.order.bsm.biz.aspect;
+package com.monkey.common.lock.aspect;
 
-import com.monkey.order.bsm.biz.annotation.DistributedLock;
+
+import com.monkey.common.lock.annotation.DistributedLock;
 import jakarta.annotation.Resource;
 import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.annotation.Around;
 import org.aspectj.lang.annotation.Aspect;
+import org.aspectj.lang.reflect.MethodSignature;
 import org.redisson.api.RLock;
 import org.redisson.api.RedissonClient;
-import org.springframework.stereotype.Component;
-import org.aspectj.lang.ProceedingJoinPoint;
-import org.aspectj.lang.reflect.MethodSignature;
 import org.springframework.core.DefaultParameterNameDiscoverer;
 import org.springframework.expression.EvaluationContext;
 import org.springframework.expression.ExpressionParser;
 import org.springframework.expression.spel.standard.SpelExpressionParser;
 import org.springframework.expression.spel.support.StandardEvaluationContext;
+import org.springframework.stereotype.Component;
 
 import java.lang.reflect.Method;
 
-import java.util.concurrent.TimeUnit;
-
 @Aspect
-@Component
 public class DistributedLockAspect {
 
     @Resource

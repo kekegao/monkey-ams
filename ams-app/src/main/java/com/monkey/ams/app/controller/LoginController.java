@@ -18,7 +18,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/login")
 public class LoginController {
 
-    @DubboReference(version = "1.0.0", group = "dev", timeout = 5000)
+    @DubboReference
     private UserProtocol userProtocol;
 
     /**
