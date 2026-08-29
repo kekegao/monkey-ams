@@ -62,6 +62,12 @@
         </dependency>
 
         <dependency>
+            <groupId>com.ctrip.framework.apollo</groupId>
+            <artifactId>apollo-client</artifactId>
+            <version>2.5.0</version>
+        </dependency>
+
+        <dependency>
             <groupId>com.monkey</groupId>
             <artifactId>account-bsm-biz-api</artifactId>
             <version>${account-bsm-biz-api.version}</version>
