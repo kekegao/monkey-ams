@@ -189,7 +189,7 @@ pipeline {
                         -v jenkins-maven-repo:/root/.m2 \
                         -w /var/jenkins_home/workspace/${APP_NAME} \
                         maven:3.9.11-eclipse-temurin-21 \
-                        mvn install -DskipTests
+                        mvn -f ${APP_NAME}/pom.xml install -DskipTests
                 """
             }
         }
