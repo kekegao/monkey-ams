@@ -20,9 +20,9 @@
     <dubbo:protocol name="${dubbo.protocol.name}" port="${dubbo.protocol.port}"/>
 
     <!-- 全局 Provider 配置 -->
-    <dubbo:provider group="${dubbo.service.group}" version="1.0.0" timeout="5000"/>
+    <dubbo:provider group="${dubbo.provider.group}" version="1.0.0" timeout="5000"/>
 
     <!-- Consumer 全局配置 -->
-    <dubbo:consumer group="${dubbo.service.group}" version="1.0.0" timeout="5000"/>
+    <dubbo:consumer group="${dubbo.consumer.group}" version="1.0.0" timeout="5000"/>
 
 </beans>
