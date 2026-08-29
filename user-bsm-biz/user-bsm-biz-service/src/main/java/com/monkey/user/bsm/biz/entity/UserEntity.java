@@ -27,7 +27,7 @@ public class UserEntity implements Serializable {
     private Long id;
 
     /** 用户ID（雪花算法生成） */
-    @TableId(value = "user_id", type = IdType.INPUT)
+    @TableId("user_id")
     private String userId;
 
     /** 用户名 */
