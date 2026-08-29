@@ -184,13 +184,12 @@ pipeline {
                 echo "开始 Maven 编译..."
 
                 sh """
-
                     docker run --rm \
                         -v jenkins_jenkins_home:/var/jenkins_home \
                         -v jenkins-maven-repo:/root/.m2 \
                         -w /var/jenkins_home/workspace/${APP_NAME} \
                         maven:3.9.11-eclipse-temurin-21 \
-                        mvn clean package -DskipTests
+                        mvn install -DskipTests
                 """
             }
         }
