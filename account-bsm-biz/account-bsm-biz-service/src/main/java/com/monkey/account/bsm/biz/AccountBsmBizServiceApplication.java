@@ -4,11 +4,14 @@ import org.apache.dubbo.config.spring.context.annotation.EnableDubbo;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.context.annotation.ComponentScan;
-import org.springframework.context.annotation.ImportResource;
 
 
 @SpringBootApplication
-@ComponentScan(basePackages = {"com.monkey.account.bsm.biz","com.monkey.ams.common","com.monkey.common.lock"})
+@ComponentScan(basePackages = {
+        "com.monkey.account.bsm.biz",
+        "com.monkey.ams.common",
+        "com.monkey.common.lock",
+        "com.monkey.common.mq"})
 @EnableDubbo
 public class AccountBsmBizServiceApplication {
 
