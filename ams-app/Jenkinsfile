@@ -214,7 +214,7 @@ pipeline {
 
                 sh """
 
-                    cd "$WORKSPACE"
+                    cd "$WORKSPACE/${APP_NAME}"
                     echo "========== JAR =========="
                     ls -lh target/*.jar
                     mkdir -p docker-context
