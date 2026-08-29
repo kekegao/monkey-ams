@@ -23,6 +23,6 @@
     <dubbo:provider group="${dubbo.provider.group}" version="1.0.0" timeout="5000"/>
 
     <!-- Consumer 全局配置 -->
-    <dubbo:consumer group="${dubbo.provider.group}" version="1.0.0" timeout="5000"/>
+    <dubbo:consumer group="${dubbo.consumer.group}" version="1.0.0" timeout="5000"/>
 
 </beans>
