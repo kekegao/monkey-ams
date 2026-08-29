@@ -7,7 +7,6 @@ import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.ImportResource;
 
 
-@ImportResource("classpath:dubbo/dubbo-provider.xml")
 @SpringBootApplication
 @ComponentScan(basePackages = {"com.monkey.account.bsm.biz","com.monkey.ams.common","com.monkey.common.lock"})
 @EnableDubbo
