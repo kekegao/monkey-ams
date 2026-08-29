@@ -43,6 +43,24 @@
             <artifactId>spring-boot-starter-test</artifactId>
             <scope>test</scope>
         </dependency>
+
+        <dependency>
+            <groupId>com.monkey</groupId>
+            <artifactId>user-bsm-biz-api</artifactId>
+            <version>${user-bsm-biz-api.version}</version>
+        </dependency>
+
+        <!-- Dubbo -->
+        <dependency>
+            <groupId>org.apache.dubbo</groupId>
+            <artifactId>dubbo-spring-boot-starter</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.apache.dubbo</groupId>
+            <artifactId>dubbo-zookeeper-spring-boot-starter</artifactId>
+            <version>3.3.0</version>
+        </dependency>
     </dependencies>
 
     <build>

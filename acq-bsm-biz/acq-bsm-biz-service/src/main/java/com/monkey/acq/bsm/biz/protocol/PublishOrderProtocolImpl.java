@@ -5,6 +5,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.dubbo.config.annotation.DubboService;
 
 @Slf4j
-@DubboService(version = "1.0.0", group = "dev", timeout = 5000)
+@DubboService
 public class PublishOrderProtocolImpl implements PublishOrderProtocol {
+
 }

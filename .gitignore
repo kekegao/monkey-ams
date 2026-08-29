@@ -9,12 +9,20 @@
 .project
 .factorypath
 
+# IDE 配置文件（忽略 IDEA 自己的配置）
+.mvn/
+
 # ========== 编译输出 ==========
-target/
-out/
+**/target/
+**/out/
 build/
 classes/
 *.class
+
+# Maven 本地仓库相关（如果你不小心把jar提交了，忽略它）
+*.jar
+*.war
+*.ear
 
 # ========== Maven 相关 ==========
 pom.xml.tag

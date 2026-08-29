@@ -103,16 +103,32 @@
             <version>${order-bsm-biz-api.version}</version>
         </dependency>
 
+
         <dependency>
-            <groupId>org.redisson</groupId>
-            <artifactId>redisson-spring-boot-starter</artifactId>
-            <version>3.52.0</version>
+            <groupId>com.monkey</groupId>
+            <artifactId>monkey-common-lock</artifactId>
+            <version>${monkey-common-lock.version}</version>
         </dependency>
 
         <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-aop</artifactId>
+            <groupId>org.apache.commons</groupId>
+            <artifactId>commons-collections4</artifactId>
+            <version>${commons-collections4.version}</version>
         </dependency>
+
+        <dependency>
+            <groupId>com.monkey</groupId>
+            <artifactId>account-bsm-biz-api</artifactId>
+            <version>${account-bsm-biz-api.version}</version>
+        </dependency>
+
+
+        <dependency>
+            <groupId>com.monkey</groupId>
+            <artifactId>monkey-common-mq</artifactId>
+            <version>${monkey-common-mq.version}</version>
+        </dependency>
+
 
 
     </dependencies>

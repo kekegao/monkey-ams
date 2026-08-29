@@ -15,5 +15,5 @@ public interface OrderProtocol {
      */
     Result publishOrder(Map<String,Object> param);
 
-    public void insertOrder(Map<String,Object> param);
+    void insertOrder(Map<String,Object> param);
 }

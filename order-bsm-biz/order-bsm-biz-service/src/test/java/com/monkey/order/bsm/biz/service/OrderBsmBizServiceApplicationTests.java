@@ -4,7 +4,9 @@ import com.monkey.ams.common.utils.SnowflakeIdWorker;
 import com.monkey.order.bsm.biz.protocol.OrderProtocol;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.context.ActiveProfiles;
 
 import java.util.HashMap;
 import java.util.HashSet;
@@ -12,6 +14,7 @@ import java.util.Map;
 import java.util.Set;
 
 @SpringBootTest
+@ActiveProfiles("dev")
 class OrderBsmBizServiceApplicationTests {
 
     @Autowired
@@ -22,6 +25,14 @@ class OrderBsmBizServiceApplicationTests {
 
     @Test
     void contextLoads() {
+    }
+
+    @Value("${dubbo.service.group}")
+    private String dubboGroup;
+
+    @Test
+    void testApollo() {
+        System.out.println("========== dubbo.service.group = " + dubboGroup);
     }
 
     @Test
