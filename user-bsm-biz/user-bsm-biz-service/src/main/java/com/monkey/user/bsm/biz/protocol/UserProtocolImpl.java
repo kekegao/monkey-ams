@@ -5,6 +5,7 @@ import com.monkey.account.bsm.biz.api.AccountProtocol;
 import com.monkey.ams.common.response.Result;
 import com.monkey.ams.common.utils.PasswordUtil;
 import com.monkey.ams.common.utils.SnowflakeIdWorker;
+import com.monkey.common.lock.annotation.DistributedLock;
 import com.monkey.user.bsm.api.dto.User;
 import com.monkey.user.bsm.api.protocol.UserProtocol;
 import com.monkey.user.bsm.biz.entity.UserEntity;
@@ -38,6 +39,7 @@ public class UserProtocolImpl implements UserProtocol {
     @Autowired
     private SnowflakeIdWorker idService;
 
+    @DistributedLock(key = "'register:user:' + #user.mobile", waitTime = 3, leaseTime = -1)
     @Override
     public Result<User> register(User user) {
         // 1. 参数校验
@@ -65,8 +67,12 @@ public class UserProtocolImpl implements UserProtocol {
         entity.setUserId(idService.nextId());
         entity.setUserName(idService.generateUserName());
         entity.setMobile(user.getMobile());
+        entity.setRealName(user.getRealName());
         entity.setPassword(user.getPassword());
+        entity.setUserType(user.getUserType());
+        entity.setUserTypeDesc(user.getUserTypeDesc());
         entity.setCreateTime(new Date());
+        entity.setCreateName(user.getRealName());
         userService.save(entity);
         log.info("用户注册成功: mobile={}", user.getMobile());
 

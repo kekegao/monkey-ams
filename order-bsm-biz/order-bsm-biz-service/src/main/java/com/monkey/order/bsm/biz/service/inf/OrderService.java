@@ -19,9 +19,9 @@ public interface OrderService extends IService<Order> {
 
     /**
      * 发布运单
-     * @param order
+     * @param param
      * @return
      */
-    boolean publishOrder(Order order);
+    Result publishOrder(Map<String, Object> param);
 
 }

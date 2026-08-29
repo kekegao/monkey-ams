@@ -80,6 +80,12 @@
             <artifactId>account-bsm-biz-api</artifactId>
             <version>${account-bsm-biz-api.version}</version>
         </dependency>
+
+        <dependency>
+            <groupId>com.monkey</groupId>
+            <artifactId>monkey-common-lock</artifactId>
+            <version>${monkey-common-lock.version}</version>
+        </dependency>
     </dependencies>
 
     <build>

@@ -14,6 +14,13 @@ public class User implements Serializable {
     private String userName;
 
     /**
+     * 用户类型 1货主 2司机
+     */
+    private Integer userType;
+
+    private String userTypeDesc;
+
+    /**
      * 真实姓名
      */
     private String realName;

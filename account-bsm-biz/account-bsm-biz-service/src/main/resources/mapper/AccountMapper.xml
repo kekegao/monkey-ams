@@ -25,4 +25,8 @@
         id, user_id, user_name, real_name, mobile, balance, frozen_amount, available_amount, status, delete_flag, create_time, create_name, update_time, update_name
     </sql>
 
+    <select id="selectAccount" resultType="com.monkey.account.bsm.biz.dto.AccountDto">
+        select <include refid="Base_Column_List"/> from tf_b_account where user_id = #{userId}
+    </select>
+
 </mapper>

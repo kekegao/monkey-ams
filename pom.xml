@@ -32,6 +32,8 @@
         <account-bsm-biz-api.version>1.0.0-SNAPSHOT</account-bsm-biz-api.version>
         <redisson.version>3.52.0</redisson.version>
         <monkey-common-lock.version>1.0.0-SNAPSHOT</monkey-common-lock.version>
+        <monkey-common-mq.version>1.0.0-SNAPSHOT</monkey-common-mq.version>
+        <commons-collections4.version>4.5.0</commons-collections4.version>
     </properties>
 
     <modules>
@@ -43,6 +45,7 @@
         <module>user-bsm-biz</module>
         <module>account-bsm-biz</module>
         <module>monkey-common-lock</module>
+        <module>monkey-common-mq</module>
     </modules>
 
     <dependencyManagement>
