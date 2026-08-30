@@ -44,7 +44,7 @@ pipeline {
         // 实例数量
         // =========================
 
-        INSTANCE_COUNT = '3'
+        INSTANCE_COUNT = '1'
 
         CONTAINER_PREFIX = 'ams-app'
 
