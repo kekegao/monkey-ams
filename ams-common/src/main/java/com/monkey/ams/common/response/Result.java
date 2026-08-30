@@ -10,7 +10,6 @@ import java.util.HashMap;
 
 @Getter
 @Setter
-@Component
 public class Result<T>  implements Serializable {
 
 	private static final long serialVersionUID = 1L;
