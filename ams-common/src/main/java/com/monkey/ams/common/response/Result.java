@@ -1,5 +1,6 @@
 package com.monkey.ams.common.response;
 
+import lombok.Data;
 import lombok.Getter;
 import lombok.Setter;
 import org.springframework.stereotype.Component;
@@ -8,13 +9,12 @@ import java.io.Serializable;
 import java.util.HashMap;
 
 
-@Getter
-@Setter
+@Data
 public class Result<T>  implements Serializable {
 
 	private static final long serialVersionUID = 1L;
 
-    private Boolean success;
+    private boolean success;
     private String code;
     private String message;
     private T data;
