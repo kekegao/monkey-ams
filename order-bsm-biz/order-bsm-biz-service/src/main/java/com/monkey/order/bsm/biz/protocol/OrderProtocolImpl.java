@@ -61,9 +61,11 @@ public class OrderProtocolImpl implements OrderProtocol {
             return result;
         }
 
+        log.info("开始发布货源");
         //发布货源
         Result orderResult = orderService.publishOrder(param);
         if(orderResult.isSuccess()){
+            log.info("货源发布成功");
             return Result.success();
         }
 
