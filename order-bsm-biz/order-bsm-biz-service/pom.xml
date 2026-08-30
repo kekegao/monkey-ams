@@ -129,11 +129,7 @@
             <version>${monkey-common-mq.version}</version>
         </dependency>
 
-        <dependency>
-            <groupId>com.monkey</groupId>
-            <artifactId>ams-common</artifactId>
-            <version>${ams-common.version}</version>
-        </dependency>
+
 
 
 
