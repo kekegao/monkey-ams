@@ -67,6 +67,7 @@ public class Result<T> extends HashMap<String, Object> {
         result.setCode(code);
         result.setMessage(message);
         result.setData(data);
+        result.put("success", success);
         result.put("code", code);
         result.put("message", message);
         result.put("data", data);
