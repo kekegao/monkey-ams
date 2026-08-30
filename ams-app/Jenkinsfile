@@ -386,74 +386,9 @@ pipeline {
                         echo "新实例启动成功：${newContainerName}"
 
 
-                        // ------------------------------------------
-                        // 健康检查
-                        // ------------------------------------------
-
-                        def success = false
-
-                        for (int retry = 1; retry <= 30; retry++) {
-
-                            echo """
-                            ${containerName}
-                            健康检查 ${retry}/30
-                            """
-
-                            def result = sh(
-                                script: """
-                                    docker run --rm \
-                                        --network ${DOCKER_NETWORK} \
-                                        curlimages/curl:8.10.1 \
-                                        -fsS \
-                                        http://${newContainerName}:${APP_PORT}${HEALTH_PATH}
-                                """,
-                                returnStatus: true
-                            )
-
-                            if (result == 0) {
-
-                                echo """
-                                ========================================
-                                ✅ ${newContainerName} 健康检查成功
-                                ========================================
-                                """
-
-                                success = true
-
-                                break
-                            }
-
-                            sleep 3
-                        }
-
 
                         // ------------------------------------------
-                        // 健康检查失败
-                        // ------------------------------------------
-
-                        if (!success) {
-
-                            echo """
-                            ========================================
-                            ❌ ${newContainerName} 健康检查失败
-                            ========================================
-                            """
-
-                            sh """
-                                docker logs ${newContainerName} || true
-                                docker rm -f ${newContainerName} || true
-                            """
-
-                            error """
-                            ${newContainerName} 发布失败！
-                            停止滚动发布。
-                            """
-                        }
-
-
-                        // ------------------------------------------
-                        // 新实例健康后
-                        // 才删除旧实例
+                        // 删除旧实例
                         // ------------------------------------------
 
                         def oldExists = sh(
@@ -517,68 +452,6 @@ pipeline {
             }
         }
 
-
-        // ==================================================
-        // 8. 最终集群检查
-        // ==================================================
-
-        stage('Cluster Health Check') {
-
-            when {
-
-                expression {
-                    params.ACTION == 'DEPLOY'
-                }
-            }
-
-            steps {
-
-                script {
-
-                    echo "========================================"
-                    echo "开始检查 3 个实例"
-                    echo "========================================"
-
-                    for (int i = 1; i <= env.INSTANCE_COUNT.toInteger(); i++) {
-
-                        def containerName =
-                            "${env.CONTAINER_PREFIX}-${i}"
-
-                        def result = sh(
-                            script: """
-                                docker run --rm \
-                                    --network ${DOCKER_NETWORK} \
-                                    curlimages/curl:8.10.1 \
-                                    -fsS \
-                                    http://${containerName}:${APP_PORT}${HEALTH_PATH}
-                            """,
-                            returnStatus: true
-                        )
-
-                        if (result != 0) {
-
-                            error """
-                            ========================================
-                            ❌ 集群健康检查失败
-
-                            实例：
-                            ${containerName}
-
-                            ========================================
-                            """
-                        }
-
-                        echo "✅ ${containerName} 正常"
-                    }
-
-                    echo """
-                    ========================================
-                    🎉 3 个实例全部健康
-                    ========================================
-                    """
-                }
-            }
-        }
 
 
         // ==================================================
@@ -733,48 +606,6 @@ pipeline {
                                 ${rollbackImage}
                         """
 
-                        // 健康检查
-                        def success = false
-
-                        for (int retry = 1; retry <= 30; retry++) {
-
-                            echo """
-                            ${containerName}
-                            回滚健康检查 ${retry}/30
-                            """
-
-                            def result = sh(
-                                script: """
-                                    docker run --rm \
-                                        --network ${DOCKER_NETWORK} \
-                                        curlimages/curl:8.10.1 \
-                                        -fsS \
-                                        http://${rollbackContainer}:${APP_PORT}${HEALTH_PATH}
-                                """,
-                                returnStatus: true
-                            )
-
-                            if (result == 0) {
-
-                                success = true
-
-                                break
-                            }
-
-                            sleep 3
-                        }
-
-                        if (!success) {
-
-                            sh """
-                                docker logs ${rollbackContainer} || true
-                                docker rm -f ${rollbackContainer} || true
-                            """
-
-                            error """
-                            ${containerName} 回滚失败！
-                            """
-                        }
 
                         // 删除当前实例
                         sh """
@@ -879,55 +710,6 @@ pipeline {
                                         --restart unless-stopped \
                                         ${env.PREVIOUS_IMAGE}
                                 """
-
-                                // 健康检查
-                                def rollbackSuccess = false
-
-                                for (int retry = 1; retry <= 30; retry++) {
-
-                                    echo """
-                                    自动回滚：
-
-                                    ${containerName}
-
-                                    健康检查 ${retry}/30
-                                    """
-
-                                    def result = sh(
-                                        script: """
-                                            docker run --rm \
-                                                --network ${DOCKER_NETWORK} \
-                                                curlimages/curl:8.10.1 \
-                                                -fsS \
-                                                http://${rollbackContainer}:${APP_PORT}${HEALTH_PATH}
-                                        """,
-                                        returnStatus: true
-                                    )
-
-                                    if (result == 0) {
-
-                                        rollbackSuccess = true
-
-                                        break
-                                    }
-
-                                    sleep 3
-                                }
-
-                                if (!rollbackSuccess) {
-
-                                    sh """
-                                        docker logs ${rollbackContainer} || true
-                                        docker rm -f ${rollbackContainer} || true
-                                    """
-
-                                    echo """
-                                    ❌ ${containerName}
-                                    自动回滚失败
-                                    """
-
-                                    continue
-                                }
 
                                 // 删除当前实例
                                 sh """
