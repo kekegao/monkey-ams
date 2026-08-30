@@ -55,6 +55,12 @@
             <version>${user-bsm-biz-api.version}</version>
         </dependency>
 
+        <dependency>
+            <groupId>com.monkey</groupId>
+            <artifactId>order-bsm-biz-api</artifactId>
+            <version>${order-bsm-biz-api.version}</version>
+        </dependency>
+
         <!-- Dubbo -->
         <dependency>
             <groupId>org.apache.dubbo</groupId>
