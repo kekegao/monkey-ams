@@ -4,13 +4,14 @@ import lombok.Getter;
 import lombok.Setter;
 import org.springframework.stereotype.Component;
 
+import java.io.Serializable;
 import java.util.HashMap;
 
 
 @Getter
 @Setter
 @Component
-public class Result<T>  {
+public class Result<T>  implements Serializable {
 
 	private static final long serialVersionUID = 1L;
 
