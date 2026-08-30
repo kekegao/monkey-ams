@@ -10,11 +10,11 @@ import java.util.HashMap;
 @Getter
 @Setter
 @Component
-public class Result<T> extends HashMap<String, Object> {
+public class Result<T>  {
 
 	private static final long serialVersionUID = 1L;
 
-    private boolean success = false;
+    private boolean success;
     private String code;
     private String message;
     private T data;
@@ -67,10 +67,6 @@ public class Result<T> extends HashMap<String, Object> {
         result.setCode(code);
         result.setMessage(message);
         result.setData(data);
-        result.put("success", success);
-        result.put("code", code);
-        result.put("message", message);
-        result.put("data", data);
         return result;
     }
 
