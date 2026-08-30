@@ -44,7 +44,7 @@ pipeline {
         // 实例数量
         // =========================
 
-        INSTANCE_COUNT = '3'
+        INSTANCE_COUNT = '1'
 
         CONTAINER_PREFIX = 'ams-app'
 
@@ -378,6 +378,7 @@ pipeline {
                             docker run -d \
                                 --name ${newContainerName} \
                                 --network ${DOCKER_NETWORK} \
+                                -p ${HOST_PORT}:${CONTAINER_PORT} \
                                 --restart unless-stopped \
                                 ${IMAGE_FULL_NAME}
                         """
@@ -727,6 +728,7 @@ pipeline {
                             docker run -d \
                                 --name ${rollbackContainer} \
                                 --network ${DOCKER_NETWORK} \
+                                -p ${HOST_PORT}:${CONTAINER_PORT} \
                                 --restart unless-stopped \
                                 ${rollbackImage}
                         """
@@ -873,6 +875,7 @@ pipeline {
                                     docker run -d \
                                         --name ${rollbackContainer} \
                                         --network ${DOCKER_NETWORK} \
+                                        -p ${HOST_PORT}:${CONTAINER_PORT} \
                                         --restart unless-stopped \
                                         ${env.PREVIOUS_IMAGE}
                                 """
