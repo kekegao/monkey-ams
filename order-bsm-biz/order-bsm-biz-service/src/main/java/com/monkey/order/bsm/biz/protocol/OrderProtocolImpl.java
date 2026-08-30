@@ -58,6 +58,7 @@ public class OrderProtocolImpl implements OrderProtocol {
         String shipperUserId = MapUtils.getString(param, "shipperUserId");
         Result result = accountProtocol.frozenTransportMoneyAccount(shipperUserId,new BigDecimal(transportMoney));
         if(!result.isSuccess()) {
+            log.info("**********************************************");
             return result;
         }
 
