@@ -29,9 +29,7 @@ public class AuthConsumerFilter implements Filter {
             RpcContext.getClientAttachment()
                     .setAttachment(
                             AuthConstants.RPC_USER_ID,
-                            String.valueOf(
-                                    session.getUserId()
-                            )
+                            session.getUserId()
                     );
 
             if (session.getSessionId() != null) {
@@ -51,6 +49,20 @@ public class AuthConsumerFilter implements Filter {
                                 session.getDeviceId()
                         );
             }
+            if(session.getUserName() != null){
+                RpcContext.getClientAttachment()
+                        .setAttachment(
+                                AuthConstants.RPC_USER_NAME,
+                                session.getUserName());
+            }
+
+            if(session.getMobile() != null){
+                RpcContext.getClientAttachment()
+                        .setAttachment(
+                                AuthConstants.RPC_USER_MOBILE,
+                                session.getMobile());
+            }
+
         }
 
         return invoker.invoke(invocation);

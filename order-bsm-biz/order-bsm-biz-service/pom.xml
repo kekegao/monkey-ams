@@ -130,7 +130,11 @@
         </dependency>
 
 
-
+        <dependency>
+            <groupId>com.monkey</groupId>
+            <artifactId>monkey-common-auth</artifactId>
+            <version>${monkey-common-auth.verison}</version>
+        </dependency>
 
 
     </dependencies>

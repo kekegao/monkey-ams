@@ -1,6 +1,5 @@
 package com.monkey.ams.common.auth.web;
 
-import com.monkey.ams.common.auth.AuthConstants;
 import com.monkey.ams.common.auth.context.UserContext;
 import com.monkey.ams.common.auth.model.LoginSession;
 import com.monkey.ams.common.auth.properties.AuthProperties;
@@ -34,8 +33,7 @@ public class AuthFilter extends OncePerRequestFilter {
 
         try {
 
-            String requestPath =
-                    request.getRequestURI();
+            String requestPath = request.getRequestURI();
 
             // 白名单
             if (isExcludePath(requestPath)) {
@@ -51,8 +49,7 @@ public class AuthFilter extends OncePerRequestFilter {
                 return;
             }
 
-            LoginSession session =
-                    sessionService.getSession(token);
+            LoginSession session = sessionService.getSession(token);
 
             if (session == null) {
                 unauthorized(response);

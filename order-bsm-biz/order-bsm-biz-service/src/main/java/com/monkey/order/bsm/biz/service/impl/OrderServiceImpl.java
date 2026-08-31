@@ -2,6 +2,7 @@ package com.monkey.order.bsm.biz.service.impl;
 
 
 import com.baomidou.mybatisplus.spring.service.impl.ServiceImpl;
+import com.monkey.ams.common.auth.context.UserContext;
 import com.monkey.ams.common.response.Result;
 import com.monkey.ams.common.utils.StringGenerateUtil;
 import com.monkey.order.bsm.biz.entity.Order;
@@ -36,7 +37,7 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
             order.setOrderId(orderId);
             order.setCreateTime(new Date());
             order.setShipperUserId(param.get("shipperUserId").toString());
-            order.setShipperUserName(param.get("shipperUserName").toString());
+            order.setShipperUserName(UserContext.get().getUserName());
             order.setShipperName(param.get("shipperName").toString());
             order.setShipperMobile(param.get("shipperMobile").toString());
             order.setShipperAddress(param.get("shipperAddress").toString());

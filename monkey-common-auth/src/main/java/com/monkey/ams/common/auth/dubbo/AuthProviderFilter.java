@@ -31,12 +31,9 @@ public class AuthProviderFilter implements Filter {
 
             if (userId != null) {
 
-                LoginSession session =
-                        new LoginSession();
+                LoginSession session = new LoginSession();
 
-                session.setUserId(
-                        Long.valueOf(userId)
-                );
+                session.setUserId(userId);
 
                 session.setSessionId(
                         RpcContext.getServerAttachment()
@@ -49,6 +46,20 @@ public class AuthProviderFilter implements Filter {
                         RpcContext.getServerAttachment()
                                 .getAttachment(
                                         AuthConstants.RPC_DEVICE_ID
+                                )
+                );
+
+                session.setUserName(
+                        RpcContext.getServerAttachment()
+                                .getAttachment(
+                                        AuthConstants.RPC_USER_NAME
+                                )
+                );
+
+                session.setMobile(
+                        RpcContext.getServerAttachment()
+                                .getAttachment(
+                                        AuthConstants.RPC_USER_MOBILE
                                 )
                 );
 

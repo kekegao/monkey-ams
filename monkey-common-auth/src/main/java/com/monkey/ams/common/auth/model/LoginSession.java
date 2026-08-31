@@ -12,7 +12,11 @@ public class LoginSession implements Serializable {
     /**
      * 用户ID
      */
-    private Long userId;
+    private String userId;
+
+    private String userName;
+
+    private String mobile;
 
     /**
      * Session ID

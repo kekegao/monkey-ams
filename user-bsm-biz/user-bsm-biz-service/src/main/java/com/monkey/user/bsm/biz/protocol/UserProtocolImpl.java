@@ -3,13 +3,13 @@ package com.monkey.user.bsm.biz.protocol;
 import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONObject;
 import com.monkey.account.bsm.biz.api.AccountProtocol;
+import com.monkey.ams.common.auth.model.LoginSession;
 import com.monkey.ams.common.response.Result;
 import com.monkey.ams.common.utils.PasswordUtil;
 import com.monkey.ams.common.utils.SnowflakeIdWorker;
 import com.monkey.common.lock.annotation.DistributedLock;
 import com.monkey.user.bsm.api.dto.LoginRequest;
 import com.monkey.user.bsm.api.dto.LoginResponse;
-import com.monkey.user.bsm.api.dto.LoginSession;
 import com.monkey.user.bsm.api.dto.User;
 import com.monkey.user.bsm.api.protocol.UserProtocol;
 import com.monkey.user.bsm.biz.entity.UserEntity;
@@ -130,6 +130,8 @@ public class UserProtocolImpl implements UserProtocol {
 
         LoginSession session = new LoginSession();
         session.setUserId(entity.getUserId());
+        session.setUserName(entity.getUserName());
+        session.setMobile(request.getMobile());
         session.setSessionId(sessionId);
         session.setDeviceId(request.getDeviceId());
 

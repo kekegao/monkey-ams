@@ -31,6 +31,16 @@ public final class AuthConstants {
     public static final String RPC_USER_ID = "monkey-user-id";
 
     /**
+     * Dubbo RPC 用户name
+     */
+    public static final String RPC_USER_NAME = "monkey-user-name";
+
+    /**
+     * Dubbo RPC 用户mobile
+     */
+    public static final String RPC_USER_MOBILE = "monkey-user-mobile";
+
+    /**
      * Dubbo RPC Session ID
      */
     public static final String RPC_SESSION_ID = "monkey-session-id";
