@@ -17,7 +17,7 @@ public final class UserContext {
         return HOLDER.get();
     }
 
-    public static Long getUserId() {
+    public static String getUserId() {
 
         LoginSession session = HOLDER.get();
 
