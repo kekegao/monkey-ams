@@ -369,24 +369,6 @@ pipeline {
                             docker rm -f ${newContainerName} || true
                         """
 
-
-                        // ------------------------------------------
-                        // 启动新版本
-                        // ------------------------------------------
-
-                        sh """
-                            docker run -d \
-                                --name ${newContainerName} \
-                                --network ${DOCKER_NETWORK} \
-                                -p ${HOST_PORT}:${CONTAINER_PORT} \
-                                --restart unless-stopped \
-                                ${IMAGE_FULL_NAME}
-                        """
-
-                        echo "新实例启动成功：${newContainerName}"
-
-
-
                         // ------------------------------------------
                         // 删除旧实例
                         // ------------------------------------------
@@ -412,20 +394,37 @@ pipeline {
 
 
                         // ------------------------------------------
-                        // 新实例改名
+                        // 启动新版本
                         // ------------------------------------------
 
                         sh """
-                            docker rename \
-                                ${newContainerName} \
-                                ${containerName}
+                            docker run -d \
+                                --name ${newContainerName} \
+                                --network ${DOCKER_NETWORK} \
+                                -p ${HOST_PORT}:${CONTAINER_PORT} \
+                                --restart unless-stopped \
+                                ${IMAGE_FULL_NAME}
                         """
 
-                        echo """
-                        ========================================
-                        ✅ 实例 ${i} 发布完成
-                        ========================================
-                        """
+                        echo "新实例启动成功：${newContainerName}"
+
+
+
+                        // ------------------------------------------
+                        // 新实例改名
+                        // ------------------------------------------
+
+                        //sh """
+                        //    docker rename \
+                        //        ${newContainerName} \
+                        //        ${containerName}
+                        //"""
+
+                       // echo """
+                       // ========================================
+                       // ✅ 实例 ${i} 发布完成
+                       // ========================================
+                      //  """
 
                         deployedInstances.add(containerName)
 
