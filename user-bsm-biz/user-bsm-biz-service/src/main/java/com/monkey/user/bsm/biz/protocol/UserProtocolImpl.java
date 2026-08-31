@@ -47,7 +47,7 @@ public class UserProtocolImpl implements UserProtocol {
     @Autowired
     private SnowflakeIdWorker idService;
 
-    @Resource
+    @Resource(name = "redisTemplate")
     private StringRedisTemplate redisTemplate;
 
     @DistributedLock(key = "'register:user:' + #user.mobile", waitTime = 3, leaseTime = -1)
