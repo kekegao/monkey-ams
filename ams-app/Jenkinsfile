@@ -417,11 +417,11 @@ pipeline {
                         // 新实例改名
                         // ------------------------------------------
 
-                        //sh """
-                        //    docker rename \
-                        //        ${newContainerName} \
-                        //        ${containerName}
-                        //"""
+                        sh """
+                            docker rename \
+                                ${newContainerName} \
+                                ${containerName}
+                        """
 
                        // echo """
                        // ========================================
