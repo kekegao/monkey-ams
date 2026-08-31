@@ -54,7 +54,7 @@
         <dependency>
             <groupId>org.apache.dubbo</groupId>
             <artifactId>dubbo</artifactId>
-            <version>3.3.6</version> <!-- 建议使用较新稳定版本 -->
+            <version>${dubbo.version}</version> <!-- 建议使用较新稳定版本 -->
         </dependency>
 
     </dependencies>
