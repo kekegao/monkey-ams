@@ -78,6 +78,12 @@
             <artifactId>apollo-client</artifactId>
             <version>2.5.0</version>
         </dependency>
+
+        <dependency>
+            <groupId>com.monkey</groupId>
+            <artifactId>monkey-common-auth</artifactId>
+            <version>${monkey-common-auth.verison}</version>
+        </dependency>
     </dependencies>
 
     <build>

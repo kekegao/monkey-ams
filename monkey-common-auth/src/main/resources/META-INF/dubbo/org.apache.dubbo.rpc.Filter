@@ -1,0 +1,2 @@
+authConsumerFilter=com.monkey.ams.common.auth.dubbo.AuthConsumerFilter
+authProviderFilter=com.monkey.ams.common.auth.dubbo.AuthProviderFilter
