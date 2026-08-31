@@ -41,8 +41,7 @@ public class AuthFilter extends OncePerRequestFilter {
                 return;
             }
 
-            String token =
-                    resolveToken(request);
+            String token = resolveToken(request);
 
             if (token == null) {
                 unauthorized(response);
@@ -86,9 +85,7 @@ public class AuthFilter extends OncePerRequestFilter {
             return null;
         }
 
-        return authorization.substring(
-                properties.getTokenPrefixValue().length()
-        );
+        return authorization.substring(properties.getTokenPrefixValue().length()).trim();
     }
 
     private boolean isExcludePath(String path) {
