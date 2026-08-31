@@ -48,8 +48,8 @@ public class UserProtocolImpl implements UserProtocol {
     @Autowired
     private SnowflakeIdWorker idService;
 
-    @Resource(name = "redisTemplate")
-    private RedisTemplate redisTemplate;
+    @Resource(name = "StringRedisTemplate")
+    private StringRedisTemplate StringRedisTemplate;
 
     @DistributedLock(key = "'register:user:' + #user.mobile", waitTime = 3, leaseTime = -1)
     @Override
@@ -135,7 +135,7 @@ public class UserProtocolImpl implements UserProtocol {
 
         String tokenKey = "monkey:login:token:" + token;
 
-        redisTemplate.opsForValue().set(
+        StringRedisTemplate.opsForValue().set(
                 tokenKey,
                 JSON.toJSONString(session),
                 Duration.ofHours(2)
