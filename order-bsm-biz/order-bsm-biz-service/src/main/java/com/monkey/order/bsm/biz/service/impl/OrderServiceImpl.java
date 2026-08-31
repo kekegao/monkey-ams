@@ -49,6 +49,7 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
             order.setCarrierArea(param.get("carrierArea").toString());
             order.setCarrierAddress(param.get("carrierAddress").toString());
             order.setGoodsType(param.get("goodsType").toString());
+            order.setTransportMoney(new BigDecimal(param.get("transportMoney").toString()));
             order.setGoodsDescription(param.get("goodsDescription").toString());
             order.setGoodsWeight(new BigDecimal(param.get("goodsWeight").toString()));
             order.setStatus(1);

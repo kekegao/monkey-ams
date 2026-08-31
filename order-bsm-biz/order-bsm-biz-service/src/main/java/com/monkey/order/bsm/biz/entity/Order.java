@@ -116,6 +116,12 @@ public class Order implements Serializable {
     private BigDecimal goodsWeight;
 
     /**
+     * 运费金额
+     */
+    @TableField("transport_money")
+    private BigDecimal transportMoney;
+
+    /**
      * 发货源省市区-省份
      */
     @TableField("shipper_province")
