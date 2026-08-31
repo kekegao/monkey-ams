@@ -403,6 +403,9 @@ pipeline {
                                 --network ${DOCKER_NETWORK} \
                                 -p ${HOST_PORT}:${CONTAINER_PORT} \
                                 --restart unless-stopped \
+                                --memory=1g \
+                                --memory-swap=1g \
+                                -e JAVA_TOOL_OPTIONS="-Xms256m -Xmx512m" \
                                 ${IMAGE_FULL_NAME}
                         """
 
@@ -602,6 +605,9 @@ pipeline {
                                 --network ${DOCKER_NETWORK} \
                                 -p ${HOST_PORT}:${CONTAINER_PORT} \
                                 --restart unless-stopped \
+                                --memory=1g \
+                                --memory-swap=1g \
+                                -e JAVA_TOOL_OPTIONS="-Xms256m -Xmx512m" \
                                 ${rollbackImage}
                         """
 
@@ -707,6 +713,9 @@ pipeline {
                                         --network ${DOCKER_NETWORK} \
                                         -p ${HOST_PORT}:${CONTAINER_PORT} \
                                         --restart unless-stopped \
+                                        --memory=1g \
+                                        --memory-swap=1g \
+                                        -e JAVA_TOOL_OPTIONS="-Xms256m -Xmx512m" \
                                         ${env.PREVIOUS_IMAGE}
                                 """
 
