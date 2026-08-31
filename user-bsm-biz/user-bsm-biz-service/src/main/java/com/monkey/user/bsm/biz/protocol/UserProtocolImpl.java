@@ -19,6 +19,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.dubbo.config.annotation.DubboReference;
 import org.apache.dubbo.config.annotation.DubboService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.util.StringUtils;
 
@@ -48,7 +49,7 @@ public class UserProtocolImpl implements UserProtocol {
     private SnowflakeIdWorker idService;
 
     @Resource(name = "redisTemplate")
-    private StringRedisTemplate redisTemplate;
+    private RedisTemplate redisTemplate;
 
     @DistributedLock(key = "'register:user:' + #user.mobile", waitTime = 3, leaseTime = -1)
     @Override
