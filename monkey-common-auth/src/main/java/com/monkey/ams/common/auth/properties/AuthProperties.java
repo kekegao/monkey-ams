@@ -43,7 +43,7 @@ public class AuthProperties {
     /**
      * Token 前缀
      */
-    private String tokenPrefixValue = "Bearer ";
+    private String tokenPrefixValue = "Bearer";
 
     /**
      * 不需要登录的接口

@@ -3,6 +3,7 @@ package com.monkey.user.bsm.biz.protocol;
 import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONObject;
 import com.monkey.account.bsm.biz.api.AccountProtocol;
+import com.monkey.ams.common.auth.AuthConstants;
 import com.monkey.ams.common.auth.model.LoginSession;
 import com.monkey.ams.common.response.Result;
 import com.monkey.ams.common.utils.PasswordUtil;
@@ -135,7 +136,7 @@ public class UserProtocolImpl implements UserProtocol {
         session.setSessionId(sessionId);
         session.setDeviceId(request.getDeviceId());
 
-        String tokenKey = "monkey:login:token:" + token;
+        String tokenKey = AuthConstants.LOGIN_TOKEN_PREFIX + token;
 
         stringRedisTemplate.opsForValue().set(
                 tokenKey,

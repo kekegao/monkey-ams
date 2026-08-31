@@ -13,7 +13,7 @@ public final class AuthConstants {
     /**
      * Token 前缀
      */
-    public static final String BEARER_PREFIX = "Bearer ";
+    public static final String BEARER_PREFIX = "Bearer";
 
     /**
      * Redis Token Key 前缀
