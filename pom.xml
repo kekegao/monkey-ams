@@ -48,6 +48,9 @@
         <module>monkey-common-lock</module>
         <module>monkey-common-mq</module>
         <module>monkey-common-auth</module>
+        <module>settlement-bsm-biz</module>
+        <module>invoice-bsm-biz</module>
+        <module>invoice-bsm-biz/invoice-bsm-biz-api</module>
     </modules>
 
     <dependencyManagement>
