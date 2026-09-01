@@ -18,6 +18,7 @@
     </properties>
 
     <dependencies>
+
         <dependency>
             <groupId>com.monkey</groupId>
             <artifactId>ams-common</artifactId>

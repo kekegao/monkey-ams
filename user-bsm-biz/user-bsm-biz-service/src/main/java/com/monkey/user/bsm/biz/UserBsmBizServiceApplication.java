@@ -11,7 +11,6 @@ import org.springframework.context.annotation.ImportResource;
 @ImportResource("classpath:dubbo/dubbo-provider.xml")
 @SpringBootApplication
 @ComponentScan(basePackages = {"com.monkey.user.bsm.biz", "com.monkey.ams.common"})
-@MapperScan("com.monkey.user.bsm.biz")
 @EnableDubbo
 public class UserBsmBizServiceApplication {
 

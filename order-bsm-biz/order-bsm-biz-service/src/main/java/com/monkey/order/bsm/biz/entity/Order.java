@@ -50,6 +50,12 @@ public class Order implements Serializable {
     private Integer status;
 
     /**
+     * 订单状态注释
+     */
+    @TableField("status_desc")
+    private String statusDesc;
+
+    /**
      * 货主id
      */
     @TableField("shipper_user_id")
@@ -114,6 +120,12 @@ public class Order implements Serializable {
      */
     @TableField("goods_weight")
     private BigDecimal goodsWeight;
+
+    /**
+     * 运费金额
+     */
+    @TableField("transport_money")
+    private BigDecimal transportMoney;
 
     /**
      * 发货源省市区-省份

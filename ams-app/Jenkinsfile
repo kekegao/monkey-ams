@@ -1,0 +1,790 @@
+pipeline {
+
+    agent any
+
+    parameters {
+
+        choice(
+            name: 'ACTION',
+            choices: [
+                'DEPLOY',
+                'ROLLBACK'
+            ],
+            description: '选择执行发布还是回滚'
+        )
+
+        string(
+            name: 'ROLLBACK_VERSION',
+            defaultValue: '',
+            description: '回滚版本，例如：1.0.25。ACTION=ROLLBACK 时填写'
+        )
+    }
+
+    environment {
+
+        // =========================
+        // 基础配置
+        // =========================
+
+        APP_PARENT_NAME = 'ams-app'
+
+        APP_NAME = 'ams-app'
+
+        IMAGE_NAME = 'ams-app'
+
+        DOCKER_NETWORK = 'ai-network'
+
+        APP_PORT = '8080'
+        HOST_PORT = '8083'
+        CONTAINER_PORT = '8080'
+
+        HEALTH_PATH = '/actuator/health'
+
+        // =========================
+        // 实例数量
+        // =========================
+
+        INSTANCE_COUNT = '1'
+
+        CONTAINER_PREFIX = 'ams-app'
+
+        // =========================
+        // Jenkins 自动版本
+        // =========================
+
+        VERSION = "1.0.${BUILD_NUMBER}"
+
+        IMAGE_FULL_NAME = ""
+
+        // =========================
+        // 发布过程中记录
+        // =========================
+
+        PREVIOUS_IMAGE = ""
+
+        DEPLOYED_INSTANCES = ""
+
+        DEPLOY_FAILED = 'false'
+    }
+
+
+    stages {
+
+
+        // ==================================================
+        // 1. 判断执行模式
+        // ==================================================
+
+        stage('Check Action') {
+
+            steps {
+
+                script {
+
+                    echo "========================================"
+                    echo "ACTION = ${params.ACTION}"
+                    echo "========================================"
+
+                    if (params.ACTION == 'ROLLBACK') {
+
+                        if (!params.ROLLBACK_VERSION?.trim()) {
+
+                            error """
+                            回滚版本不能为空！
+
+                            例如：
+
+                            ROLLBACK_VERSION=1.0.25
+                            """
+                        }
+
+                        echo "准备回滚到版本：${params.ROLLBACK_VERSION}"
+
+                    } else {
+
+                        echo "准备发布新版本：${env.VERSION}"
+                    }
+                }
+            }
+        }
+
+
+        // ==================================================
+        // 2. Git Checkout
+        // ==================================================
+
+        stage('Checkout') {
+
+            when {
+
+                expression {
+                    params.ACTION == 'DEPLOY'
+                }
+            }
+
+            steps {
+
+                checkout([
+                    $class: 'GitSCM',
+
+                    branches: [[
+                        name: '*/dev'
+                    ]],
+
+                    userRemoteConfigs: [[
+                        url: 'https://github.com/kekegao/monkey-ams.git'
+                    ]]
+                ])
+            }
+        }
+
+
+        // ==================================================
+        // 3. 生成版本
+        // ==================================================
+
+        stage('Generate Version') {
+
+            when {
+
+                expression {
+                    params.ACTION == 'DEPLOY'
+                }
+            }
+
+            steps {
+
+                script {
+
+                    IMAGE_FULL_NAME = "${IMAGE_NAME}:${VERSION}"
+
+                    echo "========================================"
+                    echo "VERSION          = ${VERSION}"
+                    echo "IMAGE_FULL_NAME  = ${IMAGE_FULL_NAME}"
+                    echo "INSTANCE_COUNT   = ${INSTANCE_COUNT}"
+                    echo "========================================"
+                }
+            }
+        }
+
+
+        // ==================================================
+        // 4. Maven Build
+        // ==================================================
+
+        stage('Maven Build') {
+
+            when {
+
+                expression {
+                    params.ACTION == 'DEPLOY'
+                }
+            }
+
+            steps {
+
+                echo "开始 Maven 编译..."
+
+                sh """
+                    docker run --rm \
+                        -v jenkins_jenkins_home:/var/jenkins_home \
+                        -v jenkins-maven-repo:/root/.m2 \
+                        -w /var/jenkins_home/workspace/${APP_NAME} \
+                        maven:3.9.11-eclipse-temurin-21 \
+                        mvn -f ${APP_NAME}/pom.xml clean package -DskipTests
+                """
+            }
+        }
+
+
+        // ==================================================
+        // 5. Docker Build
+        // ==================================================
+
+        stage('Docker Build') {
+
+            when {
+
+                expression {
+                    params.ACTION == 'DEPLOY'
+                }
+            }
+
+            steps {
+
+                echo "开始构建 Docker 镜像..."
+
+                sh """
+
+                    cd "$WORKSPACE/${APP_NAME}"
+                    echo "========== JAR =========="
+                    ls -lh target/*.jar
+                    mkdir -p docker-context
+                    cp Dockerfile docker-context/
+                    cp target/${APP_NAME}*.jar docker-context/app.jar
+                    cd docker-context
+                    docker build \
+                        -t ${IMAGE_NAME}:${VERSION} \
+                        -t ${IMAGE_NAME}:latest \
+                        .
+
+                """
+
+                echo "Docker 镜像构建成功"
+
+                sh """
+                    docker images ${IMAGE_NAME}
+                """
+            }
+        }
+
+
+        // ==================================================
+        // 6. 获取当前 3 个实例的版本
+        // ==================================================
+
+        stage('Get Current Version') {
+
+            when {
+
+                expression {
+                    params.ACTION == 'DEPLOY'
+                }
+            }
+
+            steps {
+
+                script {
+
+                    echo "========================================"
+                    echo "检查当前运行实例"
+                    echo "========================================"
+
+                    for (int i = 1; i <= env.INSTANCE_COUNT.toInteger(); i++) {
+
+                        def containerName =
+                            "${env.CONTAINER_PREFIX}-${i}"
+
+                        def exists = sh(
+                            script: """
+                                docker ps -a \
+                                --filter "name=^/${containerName}\$" \
+                                --format "{{.Names}}"
+                            """,
+                            returnStdout: true
+                        ).trim()
+
+                        if (exists) {
+
+                            def image = sh(
+                                script: """
+                                    docker inspect \
+                                    --format='{{.Config.Image}}' \
+                                    ${containerName}
+                                """,
+                                returnStdout: true
+                            ).trim()
+
+                            echo """
+                            ${containerName}
+                            当前版本：${image}
+                            """
+
+                            if (!env.PREVIOUS_IMAGE?.trim()) {
+
+                                env.PREVIOUS_IMAGE = image
+                            }
+
+                        } else {
+                            echo "当前不存在旧容器，这是第一次部署"
+                        }
+                    }
+
+                }
+            }
+        }
+
+
+        // ==================================================
+        // 7. 滚动发布
+        // ==================================================
+
+        stage('Rolling Deploy') {
+
+            when {
+
+                expression {
+                    params.ACTION == 'DEPLOY'
+                }
+            }
+
+            steps {
+
+                script {
+
+                    echo """
+                    ========================================
+                    🚀 开始滚动发布
+                    ========================================
+
+                    新版本：
+                    ${IMAGE_FULL_NAME}
+
+                    实例数量：
+                    ${INSTANCE_COUNT}
+
+                    ========================================
+                    """
+
+                    def deployedInstances = []
+
+                    for (int i = 1; i <= env.INSTANCE_COUNT.toInteger(); i++) {
+
+                        def containerName =
+                            "${env.CONTAINER_PREFIX}-${i}"
+
+                        def newContainerName =
+                            "${containerName}-new"
+
+                        echo """
+                        ========================================
+                        发布实例 ${i}/${INSTANCE_COUNT}
+                        ========================================
+
+                        旧容器：
+                        ${containerName}
+
+                        新容器：
+                        ${newContainerName}
+
+                        ========================================
+                        """
+
+
+                        // ------------------------------------------
+                        // 清理可能残留的新容器
+                        // ------------------------------------------
+
+                        sh """
+                            docker rm -f ${newContainerName} || true
+                        """
+
+                        // ------------------------------------------
+                        // 删除旧实例
+                        // ------------------------------------------
+
+                        def oldExists = sh(
+                            script: """
+                                docker ps -a \
+                                --filter "name=^/${containerName}\$" \
+                                --format "{{.Names}}"
+                            """,
+                            returnStdout: true
+                        ).trim()
+
+                        if (oldExists) {
+
+                            echo "停止旧实例：${containerName}"
+
+                            sh """
+                                docker stop ${containerName} || true
+                                docker rm ${containerName} || true
+                            """
+                        }
+
+
+                        // ------------------------------------------
+                        // 启动新版本
+                        // ------------------------------------------
+
+                        sh """
+                            docker run -d \
+                                --name ${newContainerName} \
+                                --network ${DOCKER_NETWORK} \
+                                -p ${HOST_PORT}:${CONTAINER_PORT} \
+                                --restart unless-stopped \
+                                --memory=1g \
+                                --memory-swap=1g \
+                                -e JAVA_TOOL_OPTIONS="-Xms256m -Xmx512m" \
+                                ${IMAGE_FULL_NAME}
+                        """
+
+                        echo "新实例启动成功：${newContainerName}"
+
+
+
+                        // ------------------------------------------
+                        // 新实例改名
+                        // ------------------------------------------
+
+                        sh """
+                            docker rename \
+                                ${newContainerName} \
+                                ${containerName}
+                        """
+
+                       // echo """
+                       // ========================================
+                       // ✅ 实例 ${i} 发布完成
+                       // ========================================
+                      //  """
+
+                        deployedInstances.add(containerName)
+
+                        env.DEPLOYED_INSTANCES = deployedInstances.join(',')
+
+                        // 给 Dubbo / ZooKeeper 一点时间
+                        sleep 5
+                    }
+
+
+                    echo """
+                    ========================================
+                    🎉 滚动发布完成
+                    ========================================
+
+                    ${env.DEPLOYED_INSTANCES}
+
+                    当前版本：
+                    ${IMAGE_FULL_NAME}
+
+                    ========================================
+                    """
+                }
+            }
+        }
+
+
+
+        // ==================================================
+        // 9. 部署成功
+        // ==================================================
+
+        stage('Deployment Success') {
+
+            when {
+
+                expression {
+                    params.ACTION == 'DEPLOY'
+                }
+            }
+
+            steps {
+
+                script {
+
+                    echo """
+                    ========================================
+                    🚀 滚动发布成功
+                    ========================================
+
+                    应用：
+                    ${APP_NAME}
+
+                    Docker：
+                    ${IMAGE_FULL_NAME}
+
+                    实例：
+
+                    ${CONTAINER_PREFIX}-1
+                    ${CONTAINER_PREFIX}-2
+                    ${CONTAINER_PREFIX}-3
+
+                    Previous：
+                    ${env.PREVIOUS_IMAGE}
+
+                    ========================================
+                    """
+                }
+            }
+        }
+
+
+        // ==================================================
+        // 10. 检查回滚镜像
+        // ==================================================
+
+        stage('Check Rollback Image') {
+
+            when {
+
+                expression {
+                    params.ACTION == 'ROLLBACK'
+                }
+            }
+
+            steps {
+
+                script {
+
+                    def rollbackImage =
+                        "${IMAGE_NAME}:${params.ROLLBACK_VERSION}"
+
+                    echo "检查回滚镜像：${rollbackImage}"
+
+                    def imageExists = sh(
+                        script: """
+                            docker image inspect \
+                            ${rollbackImage} \
+                            > /dev/null 2>&1
+                        """,
+                        returnStatus: true
+                    )
+
+                    if (imageExists != 0) {
+
+                        error """
+                        ========================================
+                        回滚失败
+                        ========================================
+
+                        Docker 镜像不存在：
+
+                        ${rollbackImage}
+
+                        ========================================
+                        """
+                    }
+
+                    echo "回滚镜像存在，可以执行回滚"
+                }
+            }
+        }
+
+
+        // ==================================================
+        // 11. 手动回滚
+        // ==================================================
+
+        stage('Rollback') {
+
+            when {
+
+                expression {
+                    params.ACTION == 'ROLLBACK'
+                }
+            }
+
+            steps {
+
+                script {
+
+                    def rollbackImage =
+                        "${IMAGE_NAME}:${params.ROLLBACK_VERSION}"
+
+                    echo """
+                    ========================================
+                    🔄 开始回滚
+                    ========================================
+
+                    回滚目标：
+                    ${rollbackImage}
+
+                    ========================================
+                    """
+
+                    for (int i = 1; i <= env.INSTANCE_COUNT.toInteger(); i++) {
+
+                        def containerName =
+                            "${env.CONTAINER_PREFIX}-${i}"
+
+                        def rollbackContainer =
+                            "${containerName}-rollback"
+
+                        echo "回滚实例：${containerName}"
+
+                        // 清理临时容器
+                        sh """
+                            docker rm -f ${rollbackContainer} || true
+                        """
+
+                        // 启动回滚版本
+                        sh """
+                            docker run -d \
+                                --name ${rollbackContainer} \
+                                --network ${DOCKER_NETWORK} \
+                                -p ${HOST_PORT}:${CONTAINER_PORT} \
+                                --restart unless-stopped \
+                                --memory=1g \
+                                --memory-swap=1g \
+                                -e JAVA_TOOL_OPTIONS="-Xms256m -Xmx512m" \
+                                ${rollbackImage}
+                        """
+
+
+                        // 删除当前实例
+                        sh """
+                            docker rm -f ${containerName} || true
+                        """
+
+                        // 改名
+                        sh """
+                            docker rename \
+                                ${rollbackContainer} \
+                                ${containerName}
+                        """
+
+                        echo "✅ ${containerName} 回滚成功"
+
+                        sleep 5
+                    }
+
+                    echo """
+                    ========================================
+                    🔄 全部实例回滚成功
+                    ========================================
+
+                    当前版本：
+
+                    ${rollbackImage}
+
+                    ========================================
+                    """
+                }
+            }
+        }
+    }
+
+
+    // ==================================================
+    // Pipeline Post
+    // ==================================================
+
+    post {
+
+        success {
+
+            echo """
+            ========================================
+            Jenkins Pipeline SUCCESS
+            ========================================
+            """
+        }
+
+
+        // ==================================================
+        // DEPLOY 失败
+        // ==================================================
+
+        failure {
+
+            script {
+
+                if (params.ACTION == 'DEPLOY') {
+
+                    echo """
+                    ========================================
+                    ⚠️ 滚动发布失败
+                    ========================================
+
+                    已经发布成功的实例：
+                    ${env.DEPLOYED_INSTANCES}
+
+                    开始自动回滚：
+
+                    ${env.PREVIOUS_IMAGE}
+
+                    ========================================
+                    """
+
+                    if (env.PREVIOUS_IMAGE?.trim()) {
+
+                        try {
+
+                            for (int i = 1; i <= env.INSTANCE_COUNT.toInteger(); i++) {
+
+                                def containerName =
+                                    "${env.CONTAINER_PREFIX}-${i}"
+
+                                def rollbackContainer =
+                                    "${containerName}-auto-rollback"
+
+                                echo "自动恢复：${containerName}"
+
+                                // 清理临时容器
+                                sh """
+                                    docker rm -f ${rollbackContainer} || true
+                                """
+
+                                // 启动旧版本
+                                sh """
+                                    docker run -d \
+                                        --name ${rollbackContainer} \
+                                        --network ${DOCKER_NETWORK} \
+                                        -p ${HOST_PORT}:${CONTAINER_PORT} \
+                                        --restart unless-stopped \
+                                        --memory=1g \
+                                        --memory-swap=1g \
+                                        -e JAVA_TOOL_OPTIONS="-Xms256m -Xmx512m" \
+                                        ${env.PREVIOUS_IMAGE}
+                                """
+
+                                // 删除当前实例
+                                sh """
+                                    docker rm -f ${containerName} || true
+                                """
+
+                                // 恢复原名称
+                                sh """
+                                    docker rename \
+                                        ${rollbackContainer} \
+                                        ${containerName}
+                                """
+
+                                echo """
+                                ✅ ${containerName}
+                                自动回滚成功
+                                """
+
+                                sleep 5
+                            }
+
+                            echo """
+                            ========================================
+                            🔄 自动回滚执行完成
+                            ========================================
+                            """
+
+                        } catch (Exception e) {
+
+                            echo """
+                            ========================================
+                            ❌ 自动回滚过程中发生异常
+                            ========================================
+
+                            ${e.getMessage()}
+
+                            ========================================
+                            """
+                        }
+
+                    } else {
+
+                        echo """
+                        ========================================
+                        第一次部署，没有旧版本
+                        无法执行自动回滚
+                        ========================================
+                        """
+                    }
+                }
+            }
+        }
+
+
+        // ==================================================
+        // Always
+        // ==================================================
+
+        always {
+
+            echo "Jenkins Pipeline 执行结束"
+
+            sh """
+                docker ps -a \
+                    --filter "name=${CONTAINER_PREFIX}" \
+                    || true
+            """
+        }
+    }
+}

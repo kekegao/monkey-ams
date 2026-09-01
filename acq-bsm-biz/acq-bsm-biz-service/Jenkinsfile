@@ -337,6 +337,9 @@ pipeline {
                             --network ${DOCKER_NETWORK} \
                             -p ${HOST_PORT}:${CONTAINER_PORT} \
                             --restart unless-stopped \
+                            --memory=1g \
+                            --memory-swap=1g \
+                            -e JAVA_TOOL_OPTIONS="-Xms256m -Xmx512m" \
                             ${IMAGE_FULL_NAME}
                     """
 
@@ -347,82 +350,6 @@ pipeline {
                         docker ps \
                             --filter "name=${CONTAINER_NAME}"
                     """
-                }
-            }
-        }
-
-
-        // ==================================================
-        // 8. 健康检查
-        // ==================================================
-
-        stage('Health Check') {
-
-            when {
-
-                expression {
-                    params.ACTION == 'DEPLOY'
-                }
-            }
-
-            steps {
-
-                script {
-
-                    echo "开始健康检查..."
-
-                    def maxRetry = 30
-
-                    def success = false
-
-
-                    for (int i = 1; i <= maxRetry; i++) {
-
-                        echo "健康检查 ${i}/${maxRetry}"
-
-
-                        def result = sh(
-                            script: """
-                                docker run --rm \
-                                    --network ${DOCKER_NETWORK} \
-                                    curlimages/curl:8.10.1 \
-                                    -fsS \
-                                    http://${CONTAINER_NAME}:${CONTAINER_PORT}${HEALTH_PATH}
-                            """,
-                            returnStatus: true
-                        )
-
-
-                        if (result == 0) {
-
-                            echo "========================================"
-                            echo "健康检查成功"
-                            echo "========================================"
-
-                            success = true
-
-                            break
-
-                        } else {
-
-                            echo "应用还没有准备好，等待 3 秒..."
-
-                            sleep 3
-                        }
-                    }
-
-
-                    if (!success) {
-
-                        error """
-                        ========================================
-                        健康检查失败
-                        ========================================
-                        应用版本：${IMAGE_FULL_NAME}
-
-                        Jenkins 将自动执行回滚。
-                        """
-                    }
                 }
             }
         }
@@ -566,62 +493,13 @@ pipeline {
                             --network ${DOCKER_NETWORK} \
                             -p ${HOST_PORT}:${CONTAINER_PORT} \
                             --restart unless-stopped \
+                            --memory=1g \
+                            --memory-swap=1g \
+                            -e JAVA_TOOL_OPTIONS="-Xms256m -Xmx512m" \
                             ${rollbackImage}
                     """
 
-
                     echo "回滚容器启动完成"
-
-
-                    // 健康检查
-                    def success = false
-
-
-                    for (int i = 1; i <= 30; i++) {
-
-                        echo "回滚健康检查 ${i}/30"
-
-
-                        def result = sh(
-                            script: """
-                                docker run --rm \
-                                    --network ${DOCKER_NETWORK} \
-                                    curlimages/curl:8.10.1 \
-                                    -fsS \
-                                    http://${CONTAINER_NAME}:${CONTAINER_PORT}${HEALTH_PATH}
-                            """,
-                            returnStatus: true
-                        )
-
-
-                        if (result == 0) {
-
-                            success = true
-
-                            echo "回滚健康检查成功"
-
-                            break
-
-                        }
-
-
-                        sleep 3
-                    }
-
-
-                    if (!success) {
-
-                        error """
-                        ========================================
-                        回滚失败！
-                        ========================================
-
-                        ${rollbackImage}
-
-                        启动后健康检查仍然失败。
-                        """
-                    }
-
 
                     echo """
                     ========================================
@@ -702,72 +580,15 @@ pipeline {
                                 --network ${DOCKER_NETWORK} \
                                 -p 8088:8080 \
                                 --restart unless-stopped \
+                                --memory=1g \
+                                --memory-swap=1g \
+                                -e JAVA_TOOL_OPTIONS="-Xms256m -Xmx512m" \
                                 ${PREVIOUS_IMAGE}
                         """
 
 
                         echo "旧版本启动成功"
 
-
-                        // 回滚健康检查
-                        def rollbackSuccess = false
-
-
-                        for (int i = 1; i <= 30; i++) {
-
-                            echo "自动回滚健康检查 ${i}/30"
-
-
-                            def result = sh(
-                                script: """
-                                    docker run --rm \
-                                        --network ${DOCKER_NETWORK} \
-                                        curlimages/curl:8.10.1 \
-                                        -fsS \
-                                        http://${CONTAINER_NAME}:${CONTAINER_PORT}${HEALTH_PATH}
-                                """,
-                                returnStatus: true
-                            )
-
-
-                            if (result == 0) {
-
-                                rollbackSuccess = true
-
-                                break
-                            }
-
-
-                            sleep 3
-                        }
-
-
-                        if (rollbackSuccess) {
-
-                            echo """
-                            ========================================
-                            🔄 自动回滚成功
-                            ========================================
-
-                            恢复版本：
-
-                            ${PREVIOUS_IMAGE}
-
-                            ========================================
-                            """
-
-                        } else {
-
-                            echo """
-                            ========================================
-                            ❌ 自动回滚失败
-
-                            恢复版本：
-
-                            ${PREVIOUS_IMAGE}
-                            ========================================
-                            """
-                        }
 
 
                     } catch (Exception e) {

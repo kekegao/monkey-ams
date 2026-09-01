@@ -1,6 +1,8 @@
 package com.monkey.ams.app.controller;
 
 import com.monkey.ams.common.response.Result;
+import com.monkey.user.bsm.api.dto.LoginRequest;
+import com.monkey.user.bsm.api.dto.LoginResponse;
 import com.monkey.user.bsm.api.dto.User;
 import com.monkey.user.bsm.api.protocol.UserProtocol;
 import org.apache.dubbo.config.annotation.DubboReference;
@@ -15,7 +17,7 @@ import org.springframework.web.bind.annotation.RestController;
  * @author gkk
  */
 @RestController
-@RequestMapping("/login")
+@RequestMapping("/app")
 public class LoginController {
 
     @DubboReference
@@ -35,8 +37,8 @@ public class LoginController {
      * POST /login/login  body: {"mobile":"13800138000","password":"123456"}
      */
     @PostMapping("/login")
-    public Result<User> login(@RequestBody User user) {
-        return userProtocol.login(user);
+    public Result<LoginResponse> login(@RequestBody LoginRequest request) {
+        return userProtocol.login(request);
     }
 
 }

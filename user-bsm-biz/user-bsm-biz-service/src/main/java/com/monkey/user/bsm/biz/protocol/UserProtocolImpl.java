@@ -1,23 +1,33 @@
 package com.monkey.user.bsm.biz.protocol;
 
+import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONObject;
 import com.monkey.account.bsm.biz.api.AccountProtocol;
+import com.monkey.ams.common.auth.AuthConstants;
+import com.monkey.ams.common.auth.model.LoginSession;
 import com.monkey.ams.common.response.Result;
 import com.monkey.ams.common.utils.PasswordUtil;
 import com.monkey.ams.common.utils.SnowflakeIdWorker;
 import com.monkey.common.lock.annotation.DistributedLock;
+import com.monkey.user.bsm.api.dto.LoginRequest;
+import com.monkey.user.bsm.api.dto.LoginResponse;
 import com.monkey.user.bsm.api.dto.User;
 import com.monkey.user.bsm.api.protocol.UserProtocol;
 import com.monkey.user.bsm.biz.entity.UserEntity;
 import com.monkey.user.bsm.biz.service.inf.UserService;
+import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.dubbo.config.annotation.DubboReference;
 import org.apache.dubbo.config.annotation.DubboService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.util.StringUtils;
 
+import java.time.Duration;
 import java.util.Date;
 import java.util.Objects;
+import java.util.UUID;
 
 /**
  * 用户服务实现（Dubbo 提供者）
@@ -38,6 +48,9 @@ public class UserProtocolImpl implements UserProtocol {
 
     @Autowired
     private SnowflakeIdWorker idService;
+
+    @Resource(name = "stringRedisTemplate")
+    private StringRedisTemplate stringRedisTemplate;
 
     @DistributedLock(key = "'register:user:' + #user.mobile", waitTime = 3, leaseTime = -1)
     @Override
@@ -87,30 +100,55 @@ public class UserProtocolImpl implements UserProtocol {
     }
 
     @Override
-    public Result<User> login(User user) {
+    public Result<LoginResponse> login(LoginRequest request) {
         // 1. 参数校验
-        if (user == null || !StringUtils.hasText(user.getMobile())) {
+        if (request == null || !StringUtils.hasText(request.getMobile())) {
             return Result.fail("手机号不能为空");
         }
-        if (!StringUtils.hasText(user.getPassword())) {
+        if (!StringUtils.hasText(request.getPassword())) {
             return Result.fail("密码不能为空");
         }
 
         // 2. 按手机号查询
         UserEntity entity = userService.lambdaQuery()
-                .eq(UserEntity::getMobile, user.getMobile())
+                .eq(UserEntity::getMobile, request.getMobile())
                 .one();
         if (entity == null) {
             return Result.fail("该手机号未注册");
         }
 
         // 3. 校验密码
-        if (!Objects.equals(user.getPassword(), entity.getPassword())) {
+        if (!Objects.equals(request.getPassword(), entity.getPassword())) {
             return Result.fail("密码错误");
         }
-        log.info("用户登录成功: mobile={}", user.getMobile());
+        log.info("用户登录成功: mobile={}", request.getMobile());
 
-        return Result.success("登录成功", toUser(entity));
+
+        // 创建 Token
+        String token = UUID.randomUUID().toString().replace("-", "");
+
+        String sessionId = UUID.randomUUID().toString().replace("-", "");
+
+        LoginSession session = new LoginSession();
+        session.setUserId(entity.getUserId());
+        session.setUserName(entity.getUserName());
+        session.setMobile(request.getMobile());
+        session.setSessionId(sessionId);
+        session.setDeviceId(request.getDeviceId());
+
+        String tokenKey = AuthConstants.LOGIN_TOKEN_PREFIX + token;
+
+        stringRedisTemplate.opsForValue().set(
+                tokenKey,
+                JSON.toJSONString(session),
+                Duration.ofHours(2)
+        );
+
+        return Result.success("登录成功", LoginResponse.builder()
+                .token(token)
+                .userId(entity.getUserId())
+                .expire(7200L)
+                .build());
     }
 
     /**

@@ -33,6 +33,7 @@
         <redisson.version>3.52.0</redisson.version>
         <monkey-common-lock.version>1.0.0-SNAPSHOT</monkey-common-lock.version>
         <monkey-common-mq.version>1.0.0-SNAPSHOT</monkey-common-mq.version>
+        <monkey-common-auth.verison>1.0.0-SNAPSHOT</monkey-common-auth.verison>
         <commons-collections4.version>4.5.0</commons-collections4.version>
     </properties>
 
@@ -46,6 +47,10 @@
         <module>account-bsm-biz</module>
         <module>monkey-common-lock</module>
         <module>monkey-common-mq</module>
+        <module>monkey-common-auth</module>
+        <module>settlement-bsm-biz</module>
+        <module>invoice-bsm-biz</module>
+        <module>invoice-bsm-biz/invoice-bsm-biz-api</module>
     </modules>
 
     <dependencyManagement>

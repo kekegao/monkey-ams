@@ -1,20 +1,20 @@
 package com.monkey.ams.common.response;
 
+import lombok.Data;
 import lombok.Getter;
 import lombok.Setter;
 import org.springframework.stereotype.Component;
 
+import java.io.Serializable;
 import java.util.HashMap;
 
 
-@Getter
-@Setter
-@Component
-public class Result<T> extends HashMap<String, Object> {
+@Data
+public class Result<T>  implements Serializable {
 
 	private static final long serialVersionUID = 1L;
 
-    private boolean success = false;
+    private boolean success;
     private String code;
     private String message;
     private T data;
@@ -67,10 +67,8 @@ public class Result<T> extends HashMap<String, Object> {
         result.setCode(code);
         result.setMessage(message);
         result.setData(data);
-        result.put("code", code);
-        result.put("message", message);
-        result.put("data", data);
         return result;
     }
+
 
 }

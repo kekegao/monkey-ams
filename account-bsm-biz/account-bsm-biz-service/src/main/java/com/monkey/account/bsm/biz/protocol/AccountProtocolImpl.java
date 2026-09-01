@@ -21,7 +21,7 @@ public class AccountProtocolImpl implements AccountProtocol {
     @Autowired
     private AccountService accountService;
 
-    @DistributedLock(key = "'open:account:' + #param['userId']", waitTime = 3, leaseTime = -1)
+    @DistributedLock(key = "'open:account:' + #jsonObject['userId']", waitTime = 3, leaseTime = -1)
     @Override
     public Result openAccount(JSONObject jsonObject) {
 

@@ -1,6 +1,8 @@
 package com.monkey.user.bsm.api.protocol;
 
 import com.monkey.ams.common.response.Result;
+import com.monkey.user.bsm.api.dto.LoginRequest;
+import com.monkey.user.bsm.api.dto.LoginResponse;
 import com.monkey.user.bsm.api.dto.User;
 
 /**
@@ -21,8 +23,8 @@ public interface UserProtocol {
     /**
      * 手机号 + 密码登录
      *
-     * @param user 手机号、密码
+     * @param request 手机号、密码
      * @return 登录成功返回用户信息（不含密码）
      */
-    Result<User> login(User user);
+    Result<LoginResponse> login(LoginRequest request);
 }

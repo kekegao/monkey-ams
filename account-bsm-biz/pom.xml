@@ -13,6 +13,7 @@
     <packaging>pom</packaging>
     <modules>
         <module>account-bsm-biz-api</module>
+        <module>account-bsm-biz-service</module>
     </modules>
 
     <properties>
