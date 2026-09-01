@@ -6,6 +6,7 @@ import com.monkey.ams.common.response.Result;
 import com.monkey.ams.common.utils.SnowflakeIdWorker;
 import com.monkey.common.lock.annotation.DistributedLock;
 import com.monkey.common.mq.core.RabbitMqProducer;
+import com.monkey.order.bsm.biz.dto.AcceptOrderDTO;
 import com.monkey.order.bsm.biz.dto.OrderPublishDTO;
 import com.monkey.order.bsm.biz.entity.Order;
 import com.monkey.order.bsm.biz.service.inf.OrderService;
@@ -76,6 +77,20 @@ public class OrderProtocolImpl implements OrderProtocol {
         data.put("amount", transportMoney);
         rabbitMqProducer.send(ROUTING_KEY, data);
         return Result.fail();
+    }
+
+    /**
+     * 摘单
+     * @param acceptOrderDTO
+     * @return
+     */
+    @Override
+    public Result acceptOrder(AcceptOrderDTO acceptOrderDTO) {
+
+
+
+
+        return null;
     }
 
     @Override

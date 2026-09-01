@@ -1,6 +1,7 @@
-package com.monkey.ams.app.controller;
+package com.monkey.ams.app.controller.carrier;
 
 import com.monkey.ams.common.response.Result;
+import com.monkey.order.bsm.biz.dto.AcceptOrderDTO;
 import com.monkey.order.bsm.biz.dto.OrderPublishDTO;
 import com.monkey.order.bsm.biz.protocol.OrderProtocol;
 import org.apache.dubbo.config.annotation.DubboReference;
@@ -10,8 +11,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
-@RequestMapping("/publishOrder")
-public class PublishOrderController {
+@RequestMapping("/accept")
+public class AcceptOrderController {
 
 
     @DubboReference
@@ -19,12 +20,12 @@ public class PublishOrderController {
 
 
     /**
-     * 发布
+     * 摘单
      *
-     * POST /publishOrder/publish
+     * POST /accept/acceptOrder
      */
-    @PostMapping("/publish")
-    public Result publishOrder(@RequestBody OrderPublishDTO orderPublishDTO) {
-        return orderProtocol.publishOrder(orderPublishDTO);
+    @PostMapping("/acceptOrder")
+    public Result acceptOrder(@RequestBody AcceptOrderDTO acceptOrderDTO) {
+        return orderProtocol.acceptOrder(acceptOrderDTO);
     }
 }
