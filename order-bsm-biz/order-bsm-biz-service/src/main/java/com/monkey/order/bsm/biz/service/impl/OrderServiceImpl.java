@@ -5,15 +5,15 @@ import com.baomidou.mybatisplus.spring.service.impl.ServiceImpl;
 import com.monkey.ams.common.auth.context.UserContext;
 import com.monkey.ams.common.response.Result;
 import com.monkey.ams.common.utils.StringGenerateUtil;
+import com.monkey.order.bsm.biz.dto.OrderPublishDTO;
 import com.monkey.order.bsm.biz.entity.Order;
 import com.monkey.order.bsm.biz.mapper.OrderMapper;
 import com.monkey.order.bsm.biz.service.inf.OrderService;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.BeanUtils;
 import org.springframework.stereotype.Service;
 
-import java.math.BigDecimal;
 import java.util.Date;
-import java.util.Map;
 
 /**
  * <p>
@@ -27,40 +27,31 @@ import java.util.Map;
 @Service
 public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements OrderService {
 
-    //@DistributedLock(key = "'order:create:' + #order.orderId", waitTime = 3, leaseTime = -1)
     @Override
-    public Result publishOrder(Map<String, Object> param) {
-        //生成运单号
+    public Result publishOrder(OrderPublishDTO orderPublishDTO) {
         try {
-            String orderId = StringGenerateUtil.generateOrderNo();
-            Order order = new Order();
-            order.setOrderId(orderId);
-            order.setCreateTime(new Date());
-            order.setShipperUserId(param.get("shipperUserId").toString());
-            order.setShipperUserName(UserContext.get().getUserName());
-            order.setShipperName(param.get("shipperName").toString());
-            order.setShipperMobile(param.get("shipperMobile").toString());
-            order.setShipperAddress(param.get("shipperAddress").toString());
-            order.setShipperProvince(param.get("shipperProvince").toString());
-            order.setShipperCity(param.get("shipperCity").toString());
-            order.setShipperArea(param.get("shipperArea").toString());
-            order.setCarrierProvince(param.get("carrierProvince").toString());
-            order.setCarrierCity(param.get("carrierCity").toString());
-            order.setCarrierArea(param.get("carrierArea").toString());
-            order.setCarrierAddress(param.get("carrierAddress").toString());
-            order.setGoodsType(param.get("goodsType").toString());
-            order.setTransportMoney(new BigDecimal(param.get("transportMoney").toString()));
-            order.setGoodsDescription(param.get("goodsDescription").toString());
-            order.setGoodsWeight(new BigDecimal(param.get("goodsWeight").toString()));
-            order.setStatus(1);
-            if(this.save(order)){
+            Order order = buildOrder(orderPublishDTO);
+            if (this.save(order)) {
+                log.info("发布运单成功: orderId={}", order.getOrderId());
                 return Result.success();
             }
-            return Result.fail();
-        }catch (Exception e){
-            log.error(e.getMessage());
-            return Result.fail();
+            return Result.fail("发布运单失败");
+        } catch (Exception e) {
+            log.error("发布运单失败, orderPublishDTO={}", orderPublishDTO, e);
+            return Result.fail("发布运单失败：" + e.getMessage());
         }
+    }
 
+    /**
+     * 将发布参数DTO转为订单实体（字段名一致直接拷贝，额外字段手动赋值）
+     */
+    private Order buildOrder(OrderPublishDTO orderPublishDTO) {
+        Order order = new Order();
+        BeanUtils.copyProperties(orderPublishDTO, order);
+        order.setOrderId(StringGenerateUtil.generateOrderNo());
+        order.setCreateTime(new Date());
+        order.setShipperUserName(UserContext.get().getUserName());
+        order.setStatus(1);
+        return order;
     }
 }

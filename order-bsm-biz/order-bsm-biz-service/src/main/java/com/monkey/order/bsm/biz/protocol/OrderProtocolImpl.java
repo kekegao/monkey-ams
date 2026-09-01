@@ -6,11 +6,11 @@ import com.monkey.ams.common.response.Result;
 import com.monkey.ams.common.utils.SnowflakeIdWorker;
 import com.monkey.common.lock.annotation.DistributedLock;
 import com.monkey.common.mq.core.RabbitMqProducer;
+import com.monkey.order.bsm.biz.dto.OrderPublishDTO;
 import com.monkey.order.bsm.biz.entity.Order;
 import com.monkey.order.bsm.biz.service.inf.OrderService;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.collections4.MapUtils;
 import org.apache.dubbo.config.annotation.DubboReference;
 import org.apache.dubbo.config.annotation.DubboService;
 import org.redisson.api.RBucket;
@@ -46,25 +46,25 @@ public class OrderProtocolImpl implements OrderProtocol {
     /**
      * 发布货源
      *
-     * @param param
+     * @param orderPublishDTO
      * @return
      */
-    @DistributedLock(key = "'order:publish:' + #param['shipperUserId']", waitTime = 3, leaseTime = -1)
+    @DistributedLock(key = "'order:publish:' + #orderPublishDTO.shipperUserId", waitTime = 3, leaseTime = -1)
     @Override
-    public Result publishOrder(Map<String, Object> param) {
+    public Result publishOrder(OrderPublishDTO orderPublishDTO) {
 
         //冻结运费
-        String transportMoney = MapUtils.getString(param, "transportMoney");
-        String shipperUserId = MapUtils.getString(param, "shipperUserId");
-        Result result = accountProtocol.frozenTransportMoneyAccount(shipperUserId,new BigDecimal(transportMoney));
+        String shipperUserId = orderPublishDTO.getShipperUserId();
+        BigDecimal transportMoney = orderPublishDTO.getTransportMoney();
+        Result result = accountProtocol.frozenTransportMoneyAccount(shipperUserId, transportMoney);
         if(!result.isSuccess()) {
-            log.info("**********************************************");
+            log.warn("冻结运费失败: userId={}, amount={}, reason={}", shipperUserId, transportMoney, result.getMessage());
             return result;
         }
 
         log.info("开始发布货源");
         //发布货源
-        Result orderResult = orderService.publishOrder(param);
+        Result orderResult = orderService.publishOrder(orderPublishDTO);
         if(orderResult.isSuccess()){
             log.info("货源发布成功");
             return Result.success();
@@ -72,9 +72,9 @@ public class OrderProtocolImpl implements OrderProtocol {
 
         //如果发布失败，发送mq，回滚释放
         JSONObject data = new JSONObject();
-        data.put("userId",shipperUserId);
-        data.put("amount",transportMoney);
-        rabbitMqProducer.send(ROUTING_KEY,data);
+        data.put("userId", shipperUserId);
+        data.put("amount", transportMoney);
+        rabbitMqProducer.send(ROUTING_KEY, data);
         return Result.fail();
     }
 
