@@ -50,6 +50,12 @@ public class Order implements Serializable {
     private Integer status;
 
     /**
+     * 订单状态注释
+     */
+    @TableField("status_desc")
+    private String statusDesc;
+
+    /**
      * 货主id
      */
     @TableField("shipper_user_id")

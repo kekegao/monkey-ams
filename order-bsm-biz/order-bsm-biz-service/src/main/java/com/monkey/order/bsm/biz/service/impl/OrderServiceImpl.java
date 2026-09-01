@@ -51,7 +51,9 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
         order.setOrderId(StringGenerateUtil.generateOrderNo());
         order.setCreateTime(new Date());
         order.setShipperUserName(UserContext.get().getUserName());
+        order.setShipperUserId(UserContext.get().getUserId());
         order.setStatus(1);
+        order.setStatusDesc("发布");
         return order;
     }
 }
