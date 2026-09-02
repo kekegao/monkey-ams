@@ -35,6 +35,8 @@
         <monkey-common-mq.version>1.0.0-SNAPSHOT</monkey-common-mq.version>
         <monkey-common-auth.verison>1.0.0-SNAPSHOT</monkey-common-auth.verison>
         <commons-collections4.version>4.5.0</commons-collections4.version>
+        <fastjson.version>2.0.57</fastjson.version>
+        <apollo-client.version>2.5.0</apollo-client.version>
     </properties>
 
     <modules>

@@ -7,7 +7,21 @@ import java.io.Serializable;
 @Data
 public class UserInfoDTO implements Serializable {
 
-    private Long userId;
+    private String userId;
+
+    private String userName;
+
+    /**
+     * 用户类型 1货主 2司机
+     */
+    private Integer userType;
+
+    private String userTypeDesc;
+
+    /**
+     * 真实姓名
+     */
+    private String realName;
 
     private String mobile;
 

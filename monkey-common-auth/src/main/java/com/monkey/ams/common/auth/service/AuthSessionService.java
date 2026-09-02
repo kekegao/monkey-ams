@@ -4,10 +4,12 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.monkey.ams.common.auth.AuthConstants;
 import com.monkey.ams.common.auth.model.LoginSession;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;
 
 import java.util.concurrent.TimeUnit;
 
+@Slf4j
 @RequiredArgsConstructor
 public class AuthSessionService {
 
@@ -17,11 +19,9 @@ public class AuthSessionService {
 
     public LoginSession getSession(String token) {
 
-        String key =
-                AuthConstants.LOGIN_TOKEN_PREFIX + token;
+        String key = AuthConstants.LOGIN_TOKEN_PREFIX + token;
 
-        String value =
-                redisTemplate.opsForValue().get(key);
+        String value = redisTemplate.opsForValue().get(key);
 
         if (value == null) {
             return null;
@@ -29,10 +29,14 @@ public class AuthSessionService {
 
         try {
 
-            return objectMapper.readValue(
+            LoginSession loginSession = objectMapper.readValue(
                     value,
                     LoginSession.class
             );
+
+            //续期缓存
+            refreshSession(token,120,TimeUnit.MINUTES);
+            return  loginSession;
 
         } catch (Exception e) {
 
@@ -56,13 +60,27 @@ public class AuthSessionService {
             long timeout,
             TimeUnit unit) {
 
-        String key =
-                AuthConstants.LOGIN_TOKEN_PREFIX + token;
+        try{
+            String key =
+                    AuthConstants.LOGIN_TOKEN_PREFIX + token;
 
-        redisTemplate.expire(
-                key,
-                timeout,
-                unit
-        );
+            Long ttl = redisTemplate.getExpire(key, TimeUnit.SECONDS);
+
+            if (ttl != null && ttl > 0 && ttl <= 30 * 60) {
+
+                redisTemplate.expire(
+                        key,
+                        timeout,
+                        unit);
+
+            }
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+
+
+
+
+
     }
 }

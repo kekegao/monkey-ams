@@ -1,9 +1,9 @@
 package com.monkey.user.bsm.api.protocol;
 
 import com.monkey.ams.common.response.Result;
-import com.monkey.user.bsm.api.dto.LoginRequest;
-import com.monkey.user.bsm.api.dto.LoginResponse;
-import com.monkey.user.bsm.api.dto.User;
+import com.monkey.user.bsm.api.dto.*;
+import com.monkey.user.bsm.api.request.LoginRequest;
+import com.monkey.user.bsm.api.request.UserUpdateRequest;
 
 /**
  * 用户服务接口（Dubbo）
@@ -27,4 +27,20 @@ public interface UserProtocol {
      * @return 登录成功返回用户信息（不含密码）
      */
     Result<LoginResponse> login(LoginRequest request);
+
+    /**
+     * 更改会员信息
+     *
+     * @param request
+     * @return
+     */
+    Result updateUser(UserUpdateRequest request);
+
+    /**
+     * 获取会员信息
+     *
+     * @param userId
+     * @return
+     */
+    Result<UserInfoDTO> getUser(String userId);
 }

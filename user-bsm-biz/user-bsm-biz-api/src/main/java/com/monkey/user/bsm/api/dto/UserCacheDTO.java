@@ -7,7 +7,7 @@ import java.io.Serializable;
 @Data
 public class UserCacheDTO implements Serializable {
 
-    private Long userId;
+    private String userId;
 
     private String mobile;
 

@@ -13,6 +13,7 @@
     <packaging>pom</packaging>
     <modules>
         <module>settlement-bsm-biz-api</module>
+        <module>settlement-bsm-biz-service</module>
     </modules>
 
     <properties>

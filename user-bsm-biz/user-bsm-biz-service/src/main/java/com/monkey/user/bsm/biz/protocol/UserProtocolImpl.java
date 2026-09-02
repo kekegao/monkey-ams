@@ -6,13 +6,12 @@ import com.monkey.account.bsm.biz.api.AccountProtocol;
 import com.monkey.ams.common.auth.AuthConstants;
 import com.monkey.ams.common.auth.model.LoginSession;
 import com.monkey.ams.common.response.Result;
-import com.monkey.ams.common.utils.PasswordUtil;
 import com.monkey.ams.common.utils.SnowflakeIdWorker;
 import com.monkey.common.lock.annotation.DistributedLock;
-import com.monkey.user.bsm.api.dto.LoginRequest;
-import com.monkey.user.bsm.api.dto.LoginResponse;
-import com.monkey.user.bsm.api.dto.User;
+import com.monkey.user.bsm.api.dto.*;
 import com.monkey.user.bsm.api.protocol.UserProtocol;
+import com.monkey.user.bsm.api.request.LoginRequest;
+import com.monkey.user.bsm.api.request.UserUpdateRequest;
 import com.monkey.user.bsm.biz.entity.UserEntity;
 import com.monkey.user.bsm.biz.service.inf.UserService;
 import jakarta.annotation.Resource;
@@ -20,14 +19,16 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.dubbo.config.annotation.DubboReference;
 import org.apache.dubbo.config.annotation.DubboService;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.time.Duration;
 import java.util.Date;
 import java.util.Objects;
 import java.util.UUID;
+
+import static com.monkey.ams.common.auth.AuthConstants.LOGIN_USER_SUFFIX;
 
 /**
  * 用户服务实现（Dubbo 提供者）
@@ -151,6 +152,61 @@ public class UserProtocolImpl implements UserProtocol {
                 .build());
     }
 
+    @Transactional(rollbackFor = Exception.class)
+    @Override
+    public Result updateUser(UserUpdateRequest request) {
+        String userId = request.getUserId();
+        UserEntity user = userService.lambdaQuery()
+                .eq(UserEntity::getUserId, userId)
+                .one();
+        if (user == null) {
+            return Result.fail();
+        }
+        UserEntity entity = new UserEntity();
+        entity.setId(user.getId());
+        entity.setRealName(request.getRealName());
+        entity.setMobile(request.getMobile());
+        userService.updateById(entity);
+        String key = LOGIN_USER_SUFFIX + userId;
+        stringRedisTemplate.delete(key);
+        return Result.success();
+    }
+
+    @Override
+    public Result<UserInfoDTO> getUser(String userId) {
+
+        String key = LOGIN_USER_SUFFIX + userId;
+
+        String json = stringRedisTemplate.opsForValue().get(key);
+
+        if (json != null) {
+
+            UserInfoDTO userInfoDTO = JSON.parseObject(
+                    json,
+                    UserInfoDTO.class
+            );
+            return Result.success(userInfoDTO);
+        }
+
+        UserEntity user = userService.lambdaQuery()
+                .eq(UserEntity::getUserId, userId)
+                .one();
+
+        if (user == null) {
+            return Result.fail();
+        }
+
+        UserInfoDTO dto = convert(user);
+
+        stringRedisTemplate.opsForValue().set(
+                key,
+                JSON.toJSONString(dto),
+                Duration.ofMinutes(120)
+        );
+
+        return Result.success(dto);
+    }
+
     /**
      * 实体转DTO（剔除密码）
      */
@@ -159,6 +215,19 @@ public class UserProtocolImpl implements UserProtocol {
         user.setUserId(entity.getUserId());
         user.setUserName(entity.getUserName());
         user.setMobile(entity.getMobile());
+        return user;
+    }
+
+    /**
+     * 实体转DTO（剔除密码）
+     */
+    private UserInfoDTO convert(UserEntity entity) {
+        UserInfoDTO user = new UserInfoDTO();
+        user.setUserId(entity.getUserId());
+        user.setUserName(entity.getUserName());
+        user.setMobile(entity.getMobile());
+        user.setUserType(entity.getUserType());
+        user.setUserTypeDesc(entity.getUserTypeDesc());
         return user;
     }
 }
