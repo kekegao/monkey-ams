@@ -52,7 +52,7 @@ public class AccountProtocolImpl implements AccountProtocol {
         }
         AccountDto accountDto = result.getData();
         if(accountDto.getAvailableAmount() == null || accountDto.getAvailableAmount().compareTo(amount) < 0) {
-            return Result.fail("可用余额不足");
+            return Result.fail("可用余额不足，请先去充值");
         }
 
         // 冻结运费：冻结金额累加运费，可用余额扣减运费
