@@ -55,6 +55,7 @@ public class UserProtocolImpl implements UserProtocol {
     private StringRedisTemplate stringRedisTemplate;
 
     @DistributedLock(key = "'register:user:' + #user.mobile", waitTime = 3, leaseTime = -1)
+    @Transactional(rollbackFor = Exception.class)
     @Override
     public Result<User> register(User user) {
         // 1. 参数校验
