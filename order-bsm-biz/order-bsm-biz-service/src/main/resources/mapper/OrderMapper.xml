@@ -35,7 +35,7 @@
     </sql>
 
     <select id="selectListByCondition" resultType="com.monkey.order.bsm.biz.dto.OrderDto">
-
+        select <include refid="Base_Column_List"/> from tf_b_order
     </select>
 
 </mapper>

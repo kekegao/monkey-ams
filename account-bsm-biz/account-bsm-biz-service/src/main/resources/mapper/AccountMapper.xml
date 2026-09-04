@@ -26,7 +26,17 @@
     </sql>
 
     <select id="selectAccount" resultType="com.monkey.account.bsm.biz.dto.AccountDto">
-        select <include refid="Base_Column_List"/> from tf_b_account where user_id = #{userId}
+        select <include refid="Base_Column_List"/> from tf_b_account where user_id = #{userId} and status = 1
     </select>
+
+    <!-- 充值：余额、可用金额原子累加 -->
+    <update id="rechargeBalance">
+        update tf_b_account
+        set balance = balance + #{amount},
+            available_amount = available_amount + #{amount},
+            update_time = now()
+        where user_id = #{userId}
+          and delete_flag = 0
+    </update>
 
 </mapper>
