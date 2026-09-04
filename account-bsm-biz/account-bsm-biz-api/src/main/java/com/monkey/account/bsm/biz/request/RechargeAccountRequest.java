@@ -8,6 +8,7 @@ import java.math.BigDecimal;
 @Data
 public class RechargeAccountRequest implements Serializable {
 
+    private String userId;
     /**
      * 充值金额
      */

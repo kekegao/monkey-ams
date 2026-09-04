@@ -75,12 +75,8 @@ public class AuthSessionService {
 
             }
         } catch (Exception e) {
-            throw new RuntimeException(e);
+            log.error("refreshSession error", e);
         }
-
-
-
-
 
     }
 }
