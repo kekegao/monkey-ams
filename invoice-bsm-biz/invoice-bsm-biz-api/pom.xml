@@ -5,9 +5,8 @@
     <modelVersion>4.0.0</modelVersion>
     <parent>
         <groupId>com.monkey</groupId>
-        <artifactId>monkey-ams</artifactId>
+        <artifactId>invoice-bsm-biz</artifactId>
         <version>1.0.0-SNAPSHOT</version>
-        <relativePath>../../pom.xml</relativePath>
     </parent>
 
     <artifactId>invoice-bsm-biz-api</artifactId>
