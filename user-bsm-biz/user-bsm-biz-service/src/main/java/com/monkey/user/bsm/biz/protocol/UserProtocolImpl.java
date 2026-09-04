@@ -5,6 +5,7 @@ import com.alibaba.fastjson.JSONObject;
 import com.monkey.account.bsm.biz.api.AccountProtocol;
 import com.monkey.ams.common.auth.AuthConstants;
 import com.monkey.ams.common.auth.model.LoginSession;
+import com.monkey.ams.common.constants.UserTypeEnum;
 import com.monkey.ams.common.response.Result;
 import com.monkey.ams.common.utils.SnowflakeIdWorker;
 import com.monkey.common.lock.annotation.DistributedLock;
@@ -84,7 +85,7 @@ public class UserProtocolImpl implements UserProtocol {
         entity.setRealName(user.getRealName());
         entity.setPassword(user.getPassword());
         entity.setUserType(user.getUserType());
-        entity.setUserTypeDesc(user.getUserTypeDesc());
+        entity.setUserTypeDesc(UserTypeEnum.getByValue(user.getUserType()).getName());
         entity.setCreateTime(new Date());
         entity.setCreateName(user.getRealName());
         userService.save(entity);
@@ -94,6 +95,7 @@ public class UserProtocolImpl implements UserProtocol {
         jsonObject.put("mobile", user.getMobile());
         jsonObject.put("userId", entity.getUserId());
         jsonObject.put("userName", entity.getUserName());
+        jsonObject.put("realName", entity.getRealName());
 
         accountProtocol.openAccount(jsonObject);
 
