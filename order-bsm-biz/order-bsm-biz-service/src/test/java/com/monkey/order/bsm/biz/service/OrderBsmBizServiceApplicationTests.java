@@ -14,7 +14,6 @@ import java.util.Map;
 import java.util.Set;
 
 @SpringBootTest
-@ActiveProfiles("dev")
 class OrderBsmBizServiceApplicationTests {
 
     @Autowired
@@ -25,14 +24,6 @@ class OrderBsmBizServiceApplicationTests {
 
     @Test
     void contextLoads() {
-    }
-
-    @Value("${dubbo.service.group}")
-    private String dubboGroup;
-
-    @Test
-    void testApollo() {
-        System.out.println("========== dubbo.service.group = " + dubboGroup);
     }
 
     @Test
