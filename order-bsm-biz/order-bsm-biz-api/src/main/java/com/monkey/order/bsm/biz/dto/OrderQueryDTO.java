@@ -2,11 +2,15 @@ package com.monkey.order.bsm.biz.dto;
 
 import lombok.Data;
 
+import java.io.Serializable;
+
 /**
  * 货主已发布订单列表查询条件
  */
 @Data
-public class OrderQueryDTO {
+public class OrderQueryDTO implements Serializable {
+
+    private static final long serialVersionUID = 1L;
 
     /**
      * 货主用户ID（必传，一般由 ams-app 层从登录态注入）
