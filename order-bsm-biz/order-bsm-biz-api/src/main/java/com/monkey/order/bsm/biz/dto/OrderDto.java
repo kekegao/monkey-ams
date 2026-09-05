@@ -26,6 +26,11 @@ public class OrderDto {
     private Integer status;
 
     /**
+     * 订单状态描述，例如：发布
+     */
+    private String statusDesc;
+
+    /**
      * 货主id
      */
     private String shipperUserId;
@@ -69,6 +74,11 @@ public class OrderDto {
      * 物品重量
      */
     private BigDecimal goodsWeight;
+
+    /**
+     * 运费金额
+     */
+    private BigDecimal transportMoney;
 
     /**
      * 发货源省市区-省份

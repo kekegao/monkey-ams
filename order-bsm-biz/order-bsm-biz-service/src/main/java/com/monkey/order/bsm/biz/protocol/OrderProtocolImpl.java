@@ -2,12 +2,15 @@ package com.monkey.order.bsm.biz.protocol;
 
 import com.alibaba.fastjson.JSONObject;
 import com.monkey.account.bsm.biz.api.AccountProtocol;
+import com.monkey.ams.common.auth.context.UserContext;
 import com.monkey.ams.common.response.Result;
 import com.monkey.ams.common.utils.SnowflakeIdWorker;
 import com.monkey.common.lock.annotation.DistributedLock;
 import com.monkey.common.mq.core.RabbitMqProducer;
 import com.monkey.order.bsm.biz.dto.AcceptOrderDTO;
+import com.monkey.order.bsm.biz.dto.OrderDto;
 import com.monkey.order.bsm.biz.dto.OrderPublishDTO;
+import com.monkey.order.bsm.biz.dto.OrderQueryDTO;
 import com.monkey.order.bsm.biz.entity.Order;
 import com.monkey.order.bsm.biz.service.inf.OrderService;
 import jakarta.annotation.Resource;
@@ -19,6 +22,7 @@ import org.redisson.api.RedissonClient;
 import org.springframework.beans.factory.annotation.Autowired;
 import java.math.BigDecimal;
 import java.util.Date;
+import java.util.List;
 import java.util.Map;
 
 import static com.monkey.ams.common.constants.AmsRabbitConstants.ROUTING_KEY;
@@ -77,6 +81,37 @@ public class OrderProtocolImpl implements OrderProtocol {
         data.put("amount", transportMoney);
         rabbitMqProducer.send(ROUTING_KEY, data);
         return Result.fail();
+    }
+
+    /**
+     * 查询货主已发布的订单列表
+     *
+     * @param orderQueryDTO 查询条件
+     * @return 订单列表，按发布时间倒序
+     */
+    @Override
+    public Result<List<OrderDto>> queryPublishOrderList(OrderQueryDTO orderQueryDTO) {
+        try {
+            if (orderQueryDTO == null) {
+                orderQueryDTO = new OrderQueryDTO();
+            }
+            // ams-app 已从登录态注入货主ID，此处兜底取 dubbo 透传的登录用户
+            if (orderQueryDTO.getShipperUserId() == null || orderQueryDTO.getShipperUserId().trim().isEmpty()) {
+                try {
+                    orderQueryDTO.setShipperUserId(UserContext.getUserId());
+                } catch (Exception ignore) {
+                    // 忽略，交给下方统一校验
+                }
+            }
+            if (orderQueryDTO.getShipperUserId() == null || orderQueryDTO.getShipperUserId().trim().isEmpty()) {
+                return Result.fail("登录用户信息缺失，无法查询订单列表");
+            }
+            List<OrderDto> orderList = orderService.queryPublishOrderList(orderQueryDTO);
+            return Result.success(orderList);
+        } catch (Exception e) {
+            log.error("查询货主已发布订单列表失败, query={}", orderQueryDTO, e);
+            return Result.fail("查询订单列表失败");
+        }
     }
 
     /**

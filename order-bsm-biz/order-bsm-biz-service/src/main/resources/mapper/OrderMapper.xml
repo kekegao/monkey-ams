@@ -38,4 +38,24 @@
         select <include refid="Base_Column_List"/> from tf_b_order
     </select>
 
+    <!-- 已发布订单列表查询列（含状态描述、运费等列表页所需字段） -->
+    <sql id="Publish_Column_List">
+        id, order_id, status, status_desc, shipper_user_id, shipper_user_name, shipper_name, shipper_mobile,
+        carrier_user_id, carrier_user_name, carrier_name, carrier_mobile, goods_type, goods_description,
+        goods_weight, transport_money, shipper_province, shipper_city, shipper_area, shipper_address,
+        carrier_province, carrier_city, carrier_area, carrier_address, delete_flag, create_time, update_time
+    </sql>
+
+    <!-- 货主已发布订单列表：按货主查询，支持按状态筛选，按发布时间倒序 -->
+    <select id="selectPublishOrderList" resultType="com.monkey.order.bsm.biz.dto.OrderDto">
+        select <include refid="Publish_Column_List"/>
+        from tf_b_order
+        where delete_flag = 0
+          and shipper_user_id = #{shipperUserId}
+        <if test="status != null">
+          and status = #{status}
+        </if>
+        order by create_time desc, id desc
+    </select>
+
 </mapper>

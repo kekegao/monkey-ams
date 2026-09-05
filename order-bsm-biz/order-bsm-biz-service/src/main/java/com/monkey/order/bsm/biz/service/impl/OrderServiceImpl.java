@@ -5,7 +5,9 @@ import com.baomidou.mybatisplus.spring.service.impl.ServiceImpl;
 import com.monkey.ams.common.auth.context.UserContext;
 import com.monkey.ams.common.response.Result;
 import com.monkey.ams.common.utils.StringGenerateUtil;
+import com.monkey.order.bsm.biz.dto.OrderDto;
 import com.monkey.order.bsm.biz.dto.OrderPublishDTO;
+import com.monkey.order.bsm.biz.dto.OrderQueryDTO;
 import com.monkey.order.bsm.biz.entity.Order;
 import com.monkey.order.bsm.biz.mapper.OrderMapper;
 import com.monkey.order.bsm.biz.service.inf.OrderService;
@@ -14,6 +16,7 @@ import org.springframework.beans.BeanUtils;
 import org.springframework.stereotype.Service;
 
 import java.util.Date;
+import java.util.List;
 
 /**
  * <p>
@@ -26,6 +29,15 @@ import java.util.Date;
 @Slf4j
 @Service
 public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements OrderService {
+
+    @Override
+    public List<OrderDto> queryPublishOrderList(OrderQueryDTO queryDTO) {
+        if (queryDTO == null || queryDTO.getShipperUserId() == null || queryDTO.getShipperUserId().trim().isEmpty()) {
+            log.warn("查询已发布订单列表缺少货主用户ID");
+            return java.util.Collections.emptyList();
+        }
+        return baseMapper.selectPublishOrderList(queryDTO);
+    }
 
     @Override
     public Result publishOrder(OrderPublishDTO orderPublishDTO) {
