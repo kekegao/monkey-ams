@@ -52,9 +52,17 @@
         from tf_b_order
         where delete_flag = 0
           and shipper_user_id = #{shipperUserId}
-        <if test="status != null">
-          and status = #{status}
-        </if>
+        <choose>
+          <when test="statusList != null and statusList.size() > 0">
+            and status in
+            <foreach collection="statusList" item="s" index="index" open="(" separator="," close=")">
+              #{s}
+            </foreach>
+          </when>
+          <when test="status != null">
+            and status = #{status}
+          </when>
+        </choose>
         order by create_time desc, id desc
     </select>
 

@@ -40,8 +40,10 @@ public class PublishOrderController extends BaseController {
      * POST /publishOrder/list
      */
     @PostMapping("/list")
-    public Result<List<OrderDto>> queryPublishOrderList() {
-        OrderQueryDTO queryDTO = new OrderQueryDTO();
+    public Result<List<OrderDto>> queryPublishOrderList(@RequestBody(required = false) OrderQueryDTO queryDTO) {
+        if (queryDTO == null) {
+            queryDTO = new OrderQueryDTO();
+        }
         queryDTO.setShipperUserId(getUserId());
         return orderProtocol.queryPublishOrderList(queryDTO);
     }
