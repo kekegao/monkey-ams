@@ -152,6 +152,8 @@ public class UserProtocolImpl implements UserProtocol {
                 .token(token)
                 .userId(entity.getUserId())
                 .expire(7200L)
+                .userType(entity.getUserType())
+                .userTypeDesc(entity.getUserTypeDesc())
                 .build());
     }
 
