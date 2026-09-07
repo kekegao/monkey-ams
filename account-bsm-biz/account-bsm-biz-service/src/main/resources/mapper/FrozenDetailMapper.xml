@@ -29,4 +29,14 @@
         id, user_id, user_name, biz_type, biz_type_name, ref_id, order_no, amount, frozen_time, status, status_desc, finish_time, remark, delete_flag, create_time, create_name, update_time, update_name
     </sql>
 
+    <!-- 查询当前用户「冻结中」的冻结明细：status=1 且未删除，按冻结时间倒序 -->
+    <select id="selectFrozenDetailList" resultType="com.monkey.account.bsm.biz.dto.FrozenDetailDto">
+        select <include refid="Base_Column_List"/>
+        from tf_b_frozen_detail
+        where user_id = #{userId}
+          and status = 1
+          and delete_flag = 0
+        order by frozen_time desc, id desc
+    </select>
+
 </mapper>
