@@ -2,6 +2,8 @@ package com.monkey.account.bsm.biz.api;
 
 import com.alibaba.fastjson.JSONObject;
 import com.monkey.account.bsm.biz.dto.AccountDto;
+import com.monkey.account.bsm.biz.request.FrozenMoneyAccountRequest;
+import com.monkey.account.bsm.biz.request.UnFrozenMoneyAccountRequest;
 import com.monkey.ams.common.response.Result;
 
 import java.math.BigDecimal;
@@ -20,21 +22,19 @@ public interface AccountProtocol {
     /**
      * 冻结运费
      *
-     * @param userId
-     * @param amount
+     * @param request
      * @return
      */
-    Result frozenTransportMoneyAccount(String userId, BigDecimal amount);
+    Result frozenTransportMoneyAccount(FrozenMoneyAccountRequest request);
 
 
     /**
      * 释放运费
      *
-     * @param userId
-     * @param amount
+     * @param request
      * @return
      */
-    Result unfrozenTransportMoneyAccount(String userId, BigDecimal amount);
+    Result unfrozenTransportMoneyAccount(UnFrozenMoneyAccountRequest request);
 
     /**
      * 查询智运宝账户

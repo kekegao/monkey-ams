@@ -11,7 +11,7 @@ import lombok.experimental.Accessors;
 
 import java.io.Serializable;
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
+import java.util.Date;
 
 /**
  * <p>
@@ -49,22 +49,22 @@ public class FrozenDetail implements Serializable {
     private String userName;
 
     /**
+     * 冻结流水号
+     */
+    @TableField("frozen_no")
+    private String frozenNo;
+
+    /**
      * 冻结业务类型：1运费托管 2提现冻结
      */
     @TableField("biz_type")
-    private Byte bizType;
+    private Integer bizType;
 
     /**
      * 业务类型名称（冗余）：运费托管/提现冻结
      */
     @TableField("biz_type_name")
     private String bizTypeName;
-
-    /**
-     * 关联业务ID（运单ID/提现申请ID）
-     */
-    @TableField("ref_id")
-    private String refId;
 
     /**
      * 关联单号（YD运单号/TX提现单号）
@@ -82,13 +82,13 @@ public class FrozenDetail implements Serializable {
      * 冻结时间
      */
     @TableField("frozen_time")
-    private LocalDateTime frozenTime;
+    private Date frozenTime;
 
     /**
      * 状态：1冻结中/处理中 2已解冻(退回可用余额) 3已打款(提现完成)
      */
     @TableField("status")
-    private Byte status;
+    private Integer status;
 
     /**
      * 状态描述（冗余）：冻结中/已解冻/已打款
@@ -100,7 +100,7 @@ public class FrozenDetail implements Serializable {
      * 结束时间：运费托管解冻时间 或 提现打款时间
      */
     @TableField("finish_time")
-    private LocalDateTime finishTime;
+    private Date finishTime;
 
     /**
      * 备注
@@ -118,7 +118,7 @@ public class FrozenDetail implements Serializable {
      * 创建时间
      */
     @TableField("create_time")
-    private LocalDateTime createTime;
+    private Date createTime;
 
     /**
      * 创建人
@@ -130,7 +130,7 @@ public class FrozenDetail implements Serializable {
      * 更新时间
      */
     @TableField("update_time")
-    private LocalDateTime updateTime;
+    private Date updateTime;
 
     /**
      * 更新人

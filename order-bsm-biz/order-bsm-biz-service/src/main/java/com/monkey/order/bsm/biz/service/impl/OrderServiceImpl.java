@@ -60,7 +60,6 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
     private Order buildOrder(OrderPublishDTO orderPublishDTO) {
         Order order = new Order();
         BeanUtils.copyProperties(orderPublishDTO, order);
-        order.setOrderId(StringGenerateUtil.generateOrderNo());
         order.setCreateTime(new Date());
         order.setShipperUserName(UserContext.get().getUserName());
         order.setShipperUserId(UserContext.get().getUserId());

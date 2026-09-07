@@ -59,4 +59,6 @@ public class OrderPublishDTO implements Serializable {
 
     /** 运费 */
     private BigDecimal transportMoney;
+
+    private String orderId;
 }

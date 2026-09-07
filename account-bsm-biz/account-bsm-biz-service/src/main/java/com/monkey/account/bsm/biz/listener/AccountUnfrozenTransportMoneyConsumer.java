@@ -2,6 +2,7 @@ package com.monkey.account.bsm.biz.listener;
 
 import com.alibaba.fastjson.JSONObject;
 import com.monkey.account.bsm.biz.api.AccountProtocol;
+import com.monkey.account.bsm.biz.request.UnFrozenMoneyAccountRequest;
 import com.monkey.ams.common.response.Result;
 import com.monkey.common.mq.model.RabbitMessage;
 import com.rabbitmq.client.Channel;
@@ -41,7 +42,8 @@ public class AccountUnfrozenTransportMoneyConsumer {
             // ==========================
 
             JSONObject data = message.getData();
-            Result result = accountProtocol.unfrozenTransportMoneyAccount(data.getString("userId"),data.getBigDecimal("amount"));
+            UnFrozenMoneyAccountRequest request = JSONObject.parseObject(data.toJSONString(), UnFrozenMoneyAccountRequest.class);
+            Result result = accountProtocol.unfrozenTransportMoneyAccount(request);
             if(!result.isSuccess()) log.error("运费释放失败:{}", result.getMessage());
 
             // ==========================

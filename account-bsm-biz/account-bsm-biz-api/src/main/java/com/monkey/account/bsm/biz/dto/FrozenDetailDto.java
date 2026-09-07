@@ -35,6 +35,11 @@ public class FrozenDetailDto implements Serializable {
     private String userName;
 
     /**
+     * 冻结流水号
+     */
+    private String frozenNo;
+
+    /**
      * 冻结业务类型：1运费托管 2提现冻结
      */
     private Byte bizType;
@@ -44,10 +49,6 @@ public class FrozenDetailDto implements Serializable {
      */
     private String bizTypeName;
 
-    /**
-     * 关联业务ID（运单ID/提现申请ID）
-     */
-    private String refId;
 
     /**
      * 关联单号（YD运单号/TX提现单号）

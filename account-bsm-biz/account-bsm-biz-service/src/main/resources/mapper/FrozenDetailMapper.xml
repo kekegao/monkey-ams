@@ -7,9 +7,9 @@
         <id column="id" property="id" />
         <result column="user_id" property="userId" />
         <result column="user_name" property="userName" />
+        <result column="frozen_no" property="frozenNo" />
         <result column="biz_type" property="bizType" />
         <result column="biz_type_name" property="bizTypeName" />
-        <result column="ref_id" property="refId" />
         <result column="order_no" property="orderNo" />
         <result column="amount" property="amount" />
         <result column="frozen_time" property="frozenTime" />
@@ -26,7 +26,7 @@
 
     <!-- 通用查询结果列 -->
     <sql id="Base_Column_List">
-        id, user_id, user_name, biz_type, biz_type_name, ref_id, order_no, amount, frozen_time, status, status_desc, finish_time, remark, delete_flag, create_time, create_name, update_time, update_name
+        id, user_id, user_name, frozen_no, biz_type, biz_type_name, order_no, amount, frozen_time, status, status_desc, finish_time, remark, delete_flag, create_time, create_name, update_time, update_name
     </sql>
 
     <!-- 查询当前用户「冻结中」的冻结明细：status=1 且未删除，按冻结时间倒序 -->
@@ -34,7 +34,6 @@
         select <include refid="Base_Column_List"/>
         from tf_b_frozen_detail
         where user_id = #{userId}
-          and status = 1
           and delete_flag = 0
         order by frozen_time desc, id desc
     </select>
