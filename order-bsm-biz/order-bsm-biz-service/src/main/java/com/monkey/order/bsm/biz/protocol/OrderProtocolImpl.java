@@ -147,17 +147,23 @@ public class OrderProtocolImpl implements OrderProtocol {
     }
 
     /**
-     * 摘单
-     * @param acceptOrderDTO
-     * @return
+     * 承运端摘单（抢单）
+     * <p>
+     * 前置 Redisson 分布式锁按运单号串行化抢单，锁内再由 Service 层做
+     * 「状态 CAS + 幂等」校验落库，双重防并发，保证同一货源只被一个承运方抢到。
+     *
+     * @param acceptOrderDTO 摘单参数（orderId 运单号）
+     * @return 摘单结果
      */
+    @DistributedLock(key = "'order:accept:' + #acceptOrderDTO.orderId", waitTime = 3, leaseTime = -1)
     @Override
     public Result acceptOrder(AcceptOrderDTO acceptOrderDTO) {
-
-
-
-
-        return null;
+        try {
+            return orderService.acceptOrder(acceptOrderDTO);
+        } catch (Exception e) {
+            log.error("摘单失败, acceptOrderDTO={}", acceptOrderDTO, e);
+            return Result.fail("摘单失败，请稍后重试");
+        }
     }
 
     @Override
