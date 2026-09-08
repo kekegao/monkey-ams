@@ -31,4 +31,12 @@ public interface OrderMapper extends BaseMapper<Order> {
      */
     List<OrderDto> selectPublishOrderList(OrderQueryDTO query);
 
+    /**
+     * 承运端货源大厅列表（对应 mapper XML：selectSourceOrderList）
+     *
+     * @param query 查询条件：shipperKeyword / carrierKeyword 选填，不传则返回全部可摘货源（status 1 发布 / 2 摘单）
+     * @return 货源订单列表，按发布时间倒序
+     */
+    List<OrderDto> selectSourceOrderList(OrderQueryDTO query);
+
 }

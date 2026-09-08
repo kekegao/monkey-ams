@@ -127,6 +127,26 @@ public class OrderProtocolImpl implements OrderProtocol {
     }
 
     /**
+     * 承运端货源大厅列表（可摘货源 / 线路搜索）
+     *
+     * @param orderQueryDTO 查询条件：发货地/收货地关键字选填
+     * @return 货源订单列表，按发布时间倒序
+     */
+    @Override
+    public Result<List<OrderDto>> querySourceOrderList(OrderQueryDTO orderQueryDTO) {
+        try {
+            if (orderQueryDTO == null) {
+                orderQueryDTO = new OrderQueryDTO();
+            }
+            List<OrderDto> sourceList = orderService.querySourceOrderList(orderQueryDTO);
+            return Result.success(sourceList);
+        } catch (Exception e) {
+            log.error("查询货源大厅列表失败, query={}", orderQueryDTO, e);
+            return Result.fail("查询货源列表失败");
+        }
+    }
+
+    /**
      * 摘单
      * @param acceptOrderDTO
      * @return

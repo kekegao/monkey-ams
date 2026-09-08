@@ -36,5 +36,13 @@ public interface OrderProtocol {
      */
     Result<List<OrderDto>> queryPublishOrderList(OrderQueryDTO orderQueryDTO);
 
+    /**
+     * 承运端货源大厅列表（可摘货源 / 线路搜索）
+     *
+     * @param orderQueryDTO 查询条件：shipperKeyword / carrierKeyword 选填
+     * @return 货源订单列表，按发布时间倒序
+     */
+    Result<List<OrderDto>> querySourceOrderList(OrderQueryDTO orderQueryDTO);
+
     void insertOrder(Map<String,Object> param);
 }

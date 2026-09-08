@@ -29,4 +29,16 @@ public class OrderQueryDTO implements Serializable {
      * 与 status 同时存在时，以 statusList 为准。
      */
     private List<Integer> statusList;
+
+    /**
+     * 发货地关键字（承运端货源大厅搜索，选填）。
+     * 模糊匹配 tf_b_order 的发货省/市/区/详细地址，任一包含即命中。
+     */
+    private String shipperKeyword;
+
+    /**
+     * 收货地关键字（承运端货源大厅搜索，选填）。
+     * 模糊匹配 tf_b_order 的收货省/市/区/详细地址，任一包含即命中。
+     */
+    private String carrierKeyword;
 }

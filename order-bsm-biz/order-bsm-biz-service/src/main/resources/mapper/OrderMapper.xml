@@ -66,4 +66,29 @@
         order by create_time desc, id desc
     </select>
 
+    <!-- 承运端货源大厅列表：status 1发布/2摘单 均展示；支持发货地、收货地关键字模糊搜索，按发布时间倒序 -->
+    <select id="selectSourceOrderList" resultType="com.monkey.order.bsm.biz.dto.OrderDto">
+        select <include refid="Publish_Column_List"/>
+        from tf_b_order
+        where delete_flag = 0
+          and status in (1, 2)
+        <if test="shipperKeyword != null and shipperKeyword != ''">
+          and (
+              shipper_province like concat('%', #{shipperKeyword}, '%')
+              or shipper_city like concat('%', #{shipperKeyword}, '%')
+              or shipper_area like concat('%', #{shipperKeyword}, '%')
+              or shipper_address like concat('%', #{shipperKeyword}, '%')
+          )
+        </if>
+        <if test="carrierKeyword != null and carrierKeyword != ''">
+          and (
+              carrier_province like concat('%', #{carrierKeyword}, '%')
+              or carrier_city like concat('%', #{carrierKeyword}, '%')
+              or carrier_area like concat('%', #{carrierKeyword}, '%')
+              or carrier_address like concat('%', #{carrierKeyword}, '%')
+          )
+        </if>
+        order by create_time desc, id desc
+    </select>
+
 </mapper>

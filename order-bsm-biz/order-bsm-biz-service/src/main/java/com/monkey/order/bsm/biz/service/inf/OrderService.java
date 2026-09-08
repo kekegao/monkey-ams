@@ -35,4 +35,12 @@ public interface OrderService extends IService<Order> {
      */
     List<OrderDto> queryPublishOrderList(OrderQueryDTO queryDTO);
 
+    /**
+     * 承运端货源大厅列表（可摘货源 / 线路搜索）
+     *
+     * @param queryDTO 查询条件：发货地/收货地关键字选填
+     * @return 货源订单列表
+     */
+    List<OrderDto> querySourceOrderList(OrderQueryDTO queryDTO);
+
 }

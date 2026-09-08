@@ -40,6 +40,14 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
     }
 
     @Override
+    public List<OrderDto> querySourceOrderList(OrderQueryDTO queryDTO) {
+        if (queryDTO == null) {
+            queryDTO = new OrderQueryDTO();
+        }
+        return baseMapper.selectSourceOrderList(queryDTO);
+    }
+
+    @Override
     public Result publishOrder(OrderPublishDTO orderPublishDTO) {
         try {
             Order order = buildOrder(orderPublishDTO);
