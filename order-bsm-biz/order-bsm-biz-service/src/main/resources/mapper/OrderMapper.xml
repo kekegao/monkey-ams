@@ -91,4 +91,27 @@
         order by create_time desc, id desc
     </select>
 
+    <!-- 承运端「我的运单」列表：按承运人查询其所有已摘运单（status >= 2），
+         摘单前 carrier_user_id 为空、取消摘单后会清空 carrier_user_id，均可自然排除；
+         支持按状态筛选，按发布时间倒序 -->
+    <select id="selectCarrierOrderList" resultType="com.monkey.order.bsm.biz.dto.OrderDto">
+        select <include refid="Publish_Column_List"/>
+        from tf_b_order
+        where delete_flag = 0
+          and carrier_user_id = #{carrierUserId}
+          and status &gt;= 2
+        <choose>
+          <when test="statusList != null and statusList.size() > 0">
+            and status in
+            <foreach collection="statusList" item="s" index="index" open="(" separator="," close=")">
+              #{s}
+            </foreach>
+          </when>
+          <when test="status != null">
+            and status = #{status}
+          </when>
+        </choose>
+        order by create_time desc, id desc
+    </select>
+
 </mapper>

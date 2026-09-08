@@ -46,6 +46,14 @@ public interface OrderProtocol {
     Result<List<OrderDto>> querySourceOrderList(OrderQueryDTO orderQueryDTO);
 
     /**
+     * 承运端「我的运单」列表：查询当前承运方所有已摘的运单
+     *
+     * @param orderQueryDTO 查询条件（carrierUserId 由登录态兜底注入，status/statusList 选填）
+     * @return 已摘运单列表
+     */
+    Result<List<OrderDto>> queryCarrierOrderList(OrderQueryDTO orderQueryDTO);
+
+    /**
      * 货主确认成交（摘单(2) -> 成交(3)）
      *
      * @param orderOperateDTO 货主操作参数（orderId 运单号）

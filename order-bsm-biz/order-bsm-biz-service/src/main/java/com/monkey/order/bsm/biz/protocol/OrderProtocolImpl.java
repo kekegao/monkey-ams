@@ -148,6 +148,39 @@ public class OrderProtocolImpl implements OrderProtocol {
     }
 
     /**
+     * 承运端「我的运单」列表：查询当前承运方所有已摘的运单
+     * <p>
+     * 承运方身份从 dubbo 透传的登录态 UserContext 兜底注入，避免请求参数伪造。
+     *
+     * @param orderQueryDTO 查询条件（status/statusList 选填）
+     * @return 已摘运单列表，按发布时间倒序
+     */
+    @Override
+    public Result<List<OrderDto>> queryCarrierOrderList(OrderQueryDTO orderQueryDTO) {
+        try {
+            if (orderQueryDTO == null) {
+                orderQueryDTO = new OrderQueryDTO();
+            }
+            // ams-app 已从登录态注入承运方ID，此处兜底取 dubbo 透传的登录用户
+            if (orderQueryDTO.getCarrierUserId() == null || orderQueryDTO.getCarrierUserId().trim().isEmpty()) {
+                try {
+                    orderQueryDTO.setCarrierUserId(UserContext.getUserId());
+                } catch (Exception ignore) {
+                    // 忽略，交给下方统一校验
+                }
+            }
+            if (orderQueryDTO.getCarrierUserId() == null || orderQueryDTO.getCarrierUserId().trim().isEmpty()) {
+                return Result.fail("登录用户信息缺失，无法查询运单列表");
+            }
+            List<OrderDto> orderList = orderService.queryCarrierOrderList(orderQueryDTO);
+            return Result.success(orderList);
+        } catch (Exception e) {
+            log.error("查询承运方已摘运单列表失败, query={}", orderQueryDTO, e);
+            return Result.fail("查询运单列表失败");
+        }
+    }
+
+    /**
      * 承运端摘单（抢单）
      * <p>
      * 前置 Redisson 分布式锁按运单号串行化抢单，锁内再由 Service 层做

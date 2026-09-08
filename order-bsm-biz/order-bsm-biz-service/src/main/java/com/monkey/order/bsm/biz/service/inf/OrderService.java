@@ -58,6 +58,14 @@ public interface OrderService extends IService<Order> {
     Result acceptOrder(AcceptOrderDTO acceptOrderDTO);
 
     /**
+     * 承运端「我的运单」列表：查询当前承运方所有已摘的运单（status >= 2）
+     *
+     * @param queryDTO 查询条件：carrierUserId 必传，status/statusList 选填
+     * @return 已摘运单列表，按发布时间倒序
+     */
+    List<OrderDto> queryCarrierOrderList(OrderQueryDTO queryDTO);
+
+    /**
      * 货主确认成交：将订单由 摘单(2) 流转为 成交(3)，与承运方达成正式合作。
      * 安全要求：仅该运单货主本人可操作（登录态 UserContext 校验）；
      * 防并发要求：外层分布式锁 + 状态 CAS，避免成交与取消摘单等操作互相覆盖；

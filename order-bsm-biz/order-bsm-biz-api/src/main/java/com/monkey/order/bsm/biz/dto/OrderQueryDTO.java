@@ -19,6 +19,11 @@ public class OrderQueryDTO implements Serializable {
     private String shipperUserId;
 
     /**
+     * 承运方用户ID（承运端「我的运单」必传，一般由 ams-app 层从登录态注入）
+     */
+    private String carrierUserId;
+
+    /**
      * 订单状态（选填，单值精确匹配），对应 tf_b_order.status：
      * 1发布-2摘单-3成交-4发货-5确认收货-6回单确认-7结算申请-8结算-9对账-10发票
      */

@@ -39,4 +39,15 @@ public interface OrderMapper extends BaseMapper<Order> {
      */
     List<OrderDto> selectSourceOrderList(OrderQueryDTO query);
 
+    /**
+     * 承运端「我的运单」列表（对应 mapper XML：selectCarrierOrderList）
+     * <p>
+     * 查询当前承运方所有已摘的运单（status >= 2 摘单及后续履约状态，
+     * 取消摘单后 carrier_user_id 已清空自然被排除）。
+     *
+     * @param query 查询条件：carrierUserId 必传，status/statusList 选填
+     * @return 订单列表，按发布时间倒序
+     */
+    List<OrderDto> selectCarrierOrderList(OrderQueryDTO query);
+
 }

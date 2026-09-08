@@ -52,6 +52,15 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
         return baseMapper.selectSourceOrderList(queryDTO);
     }
 
+    @Override
+    public List<OrderDto> queryCarrierOrderList(OrderQueryDTO queryDTO) {
+        if (queryDTO == null || queryDTO.getCarrierUserId() == null || queryDTO.getCarrierUserId().trim().isEmpty()) {
+            log.warn("查询承运方已摘运单列表缺少承运方用户ID");
+            return java.util.Collections.emptyList();
+        }
+        return baseMapper.selectCarrierOrderList(queryDTO);
+    }
+
     /**
      * 承运端摘单（抢单）
      * <p>

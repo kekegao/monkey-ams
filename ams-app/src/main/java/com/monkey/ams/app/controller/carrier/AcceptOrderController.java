@@ -1,5 +1,6 @@
 package com.monkey.ams.app.controller.carrier;
 
+import com.monkey.ams.app.controller.BaseController;
 import com.monkey.ams.common.response.Result;
 import com.monkey.order.bsm.biz.dto.AcceptOrderDTO;
 import com.monkey.order.bsm.biz.dto.OrderDto;
@@ -16,7 +17,7 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/accept")
-public class AcceptOrderController {
+public class AcceptOrderController extends BaseController {
 
 
     @DubboReference
@@ -41,5 +42,19 @@ public class AcceptOrderController {
     @PostMapping("/list")
     public Result<List<OrderDto>> querySourceOrderList(@RequestBody(required = false) OrderQueryDTO queryDTO) {
         return orderProtocol.querySourceOrderList(queryDTO);
+    }
+
+    /**
+     * 承运端「我的运单」列表：查询当前承运方所有已摘的运单（status >= 2）
+     *
+     * POST /accept/myOrders
+     */
+    @PostMapping("/myOrders")
+    public Result<List<OrderDto>> queryCarrierOrderList(@RequestBody(required = false) OrderQueryDTO queryDTO) {
+        if (queryDTO == null) {
+            queryDTO = new OrderQueryDTO();
+        }
+        queryDTO.setCarrierUserId(getUserId());
+        return orderProtocol.queryCarrierOrderList(queryDTO);
     }
 }
