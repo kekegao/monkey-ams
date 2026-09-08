@@ -63,6 +63,13 @@ public class AuthConsumerFilter implements Filter {
                                 session.getMobile());
             }
 
+            if(session.getRealName() != null){
+                RpcContext.getClientAttachment()
+                        .setAttachment(
+                                AuthConstants.RPC_REAL_NAME,
+                                session.getRealName());
+            }
+
         }
 
         return invoker.invoke(invocation);

@@ -66,6 +66,17 @@ public interface OrderService extends IService<Order> {
     List<OrderDto> queryCarrierOrderList(OrderQueryDTO queryDTO);
 
     /**
+     * 承运方确认发货：将订单由 成交(3) 流转为 发货(4)，启动实际运输。
+     * 安全要求：仅该运单承运方本人可操作（登录态 UserContext 校验）；
+     * 防并发要求：外层分布式锁 + 状态 CAS，避免重复发货或与取消成交等并发操作互相覆盖；
+     * 幂等要求：已发货(4)的运单重复请求直接返回成功。
+     *
+     * @param orderOperateDTO 承运方操作参数（orderId 运单号）
+     * @return 发货结果
+     */
+    Result shipOrder(OrderOperateDTO orderOperateDTO);
+
+    /**
      * 货主确认成交：将订单由 摘单(2) 流转为 成交(3)，与承运方达成正式合作。
      * 安全要求：仅该运单货主本人可操作（登录态 UserContext 校验）；
      * 防并发要求：外层分布式锁 + 状态 CAS，避免成交与取消摘单等操作互相覆盖；

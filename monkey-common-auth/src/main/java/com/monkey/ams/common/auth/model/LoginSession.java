@@ -16,6 +16,8 @@ public class LoginSession implements Serializable {
 
     private String userName;
 
+    private String realName;
+
     private String mobile;
 
     /**

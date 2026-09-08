@@ -6,6 +6,7 @@ import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.spring.service.impl.ServiceImpl;
 import com.monkey.ams.common.auth.context.UserContext;
 import com.monkey.ams.common.auth.model.LoginSession;
+import com.monkey.ams.common.constants.OrderStatusEnum;
 import com.monkey.ams.common.response.Result;
 import com.monkey.ams.common.utils.StringGenerateUtil;
 import com.monkey.order.bsm.biz.dto.AcceptOrderDTO;
@@ -108,21 +109,22 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
             return Result.success();
         }
         // 6. 非发布态且非本人已摘，给出明确失败原因
-        if (order.getStatus() == null || order.getStatus() != 1) {
-            return Result.fail(order.getStatus() != null && order.getStatus() == 2
+        if (order.getStatus() == null || order.getStatus() != OrderStatusEnum.PUBLISH.getValue()) {
+            return Result.fail(order.getStatus() != null && order.getStatus() == OrderStatusEnum.ACCEPT.getValue()
                     ? "该货源已被其他承运方摘单" : "货源当前状态不可摘单");
         }
 
         // 7. CAS 原子抢占：仅当仍为「发布(1)」才可摘，单条 UPDATE 行锁保证并发下只成功一人
         LambdaUpdateWrapper<Order> wrapper = Wrappers.<Order>lambdaUpdate()
-                .set(Order::getStatus, 2)
-                .set(Order::getStatusDesc, "摘单")
+                .set(Order::getStatus, OrderStatusEnum.ACCEPT.getValue())
+                .set(Order::getStatusDesc, OrderStatusEnum.ACCEPT.getName())
                 .set(Order::getCarrierUserId, carrierUserId)
                 .set(Order::getCarrierUserName, session.getUserName())
                 .set(Order::getCarrierMobile, session.getMobile())
+                .set(Order::getCarrierName, session.getRealName())
                 .set(Order::getUpdateTime, new Date())
                 .eq(Order::getId, order.getId())
-                .eq(Order::getStatus, 1);
+                .eq(Order::getStatus, OrderStatusEnum.PUBLISH.getValue());
         int rows = baseMapper.update(null, wrapper);
         if (rows == 1) {
             log.info("摘单成功: orderId={}, carrierUserId={}", orderId, carrierUserId);
@@ -143,8 +145,67 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
      */
     private boolean isAcceptedBy(Order order, String carrierUserId) {
         return order != null
-                && order.getStatus() != null && order.getStatus() == 2
+                && order.getStatus() != null && order.getStatus() == OrderStatusEnum.ACCEPT.getValue()
                 && carrierUserId.equals(order.getCarrierUserId());
+    }
+
+    /**
+     * 承运方确认发货（状态机：成交(3) -> 发货(4)）
+     * <p>
+     * 业务与安全规则：
+     * 1) 仅该运单承运方本人可操作，身份取自登录态 UserContext，不信任请求参数；
+     * 2) 仅「成交(3)」状态可发货，尚未成交的运单不允许启动运输；
+     * 3) CAS(where id=? and status=3) 单条 UPDATE 原子流转，外层另有分布式锁，防并发重复发货；
+     * 4) 幂等：已发货(4) 的运单重复请求直接返回成功，防止前端双击/重试误报。
+     */
+    @Override
+    public Result shipOrder(OrderOperateDTO orderOperateDTO) {
+        String orderId = normalizeOperateOrderId(orderOperateDTO);
+        if (orderId == null) {
+            return Result.fail("请选择要发货的运单");
+        }
+        LoginSession session = UserContext.get();
+        if (session == null || session.getUserId() == null || session.getUserId().trim().isEmpty()) {
+            return Result.fail("登录状态已失效，请重新登录");
+        }
+        Order order = fetchOrder(orderId);
+        if (order == null) {
+            return Result.fail("运单不存在或已删除");
+        }
+        // 安全校验：仅承运方本人
+        if (order.getCarrierUserId() == null || !session.getUserId().equals(order.getCarrierUserId())) {
+            log.warn("发货失败：非承运方本人操作, orderId={}, operator={}", orderId, session.getUserId());
+            return Result.fail("只能操作自己承运的运单");
+        }
+        // 幂等：已发货
+        if (order.getStatus() != null && order.getStatus() == OrderStatusEnum.SHIP.getValue()) {
+            log.info("重复发货请求，幂等返回成功: orderId={}", orderId);
+            return Result.success();
+        }
+        if (order.getStatus() == null || order.getStatus() != OrderStatusEnum.DEAL.getValue()) {
+            return Result.fail(order.getStatus() != null && order.getStatus() == OrderStatusEnum.ACCEPT.getValue()
+                    ? "该运单尚未成交，请等待货主确认成交后再发货"
+                    : "该运单已进入运输/结算流程，无法重复发货");
+        }
+
+        // CAS 原子流转：仅当仍处于「成交(3)」才可发货
+        int rows = baseMapper.update(null, Wrappers.<Order>lambdaUpdate()
+                .set(Order::getStatus, OrderStatusEnum.SHIP.getValue())
+                .set(Order::getStatusDesc, OrderStatusEnum.SHIP.getName())
+                .set(Order::getUpdateTime, new Date())
+                .eq(Order::getId, order.getId())
+                .eq(Order::getStatus, OrderStatusEnum.DEAL.getValue()));
+        if (rows == 1) {
+            log.info("确认发货成功: orderId={}, carrierUserId={}", orderId, session.getUserId());
+            return Result.success();
+        }
+        // CAS 竞争失败：补偿确认是否已发货成功（并发重放场景）
+        Order latest = baseMapper.selectById(order.getId());
+        if (latest != null && latest.getStatus() != null && latest.getStatus() == OrderStatusEnum.SHIP.getValue()) {
+            log.info("发货并发重试命中已发货，幂等返回成功: orderId={}", orderId);
+            return Result.success();
+        }
+        return Result.fail("操作失败，运单状态已变化，请刷新后重试");
     }
 
     /**
@@ -177,12 +238,12 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
             return Result.fail("只能操作自己发布的运单");
         }
         // 幂等：已成交
-        if (order.getStatus() != null && order.getStatus() == 3) {
+        if (order.getStatus() != null && order.getStatus() == OrderStatusEnum.DEAL.getValue()) {
             log.info("重复成交请求，幂等返回成功: orderId={}", orderId);
             return Result.success();
         }
-        if (order.getStatus() == null || order.getStatus() != 2) {
-            return Result.fail(order.getStatus() != null && order.getStatus() == 1
+        if (order.getStatus() == null || order.getStatus() != OrderStatusEnum.ACCEPT.getValue()) {
+            return Result.fail(order.getStatus() != null && order.getStatus() == OrderStatusEnum.PUBLISH.getValue()
                     ? "该运单尚未被摘单，暂无法成交"
                     : "该运单已进入履约/结算流程，无法成交");
         }
@@ -192,18 +253,18 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
 
         // CAS 原子流转：仅当仍处于「摘单(2)」才可成交
         int rows = baseMapper.update(null, Wrappers.<Order>lambdaUpdate()
-                .set(Order::getStatus, 3)
-                .set(Order::getStatusDesc, "成交")
+                .set(Order::getStatus, OrderStatusEnum.DEAL.getValue())
+                .set(Order::getStatusDesc, OrderStatusEnum.DEAL.getName())
                 .set(Order::getUpdateTime, new Date())
                 .eq(Order::getId, order.getId())
-                .eq(Order::getStatus, 2));
+                .eq(Order::getStatus, OrderStatusEnum.ACCEPT.getValue()));
         if (rows == 1) {
             log.info("确认成交成功: orderId={}, carrierUserId={}", orderId, order.getCarrierUserId());
             return Result.success();
         }
         // CAS 竞争失败：补偿确认是否已成交成功（并发重放场景）
         Order latest = baseMapper.selectById(order.getId());
-        if (latest != null && latest.getStatus() != null && latest.getStatus() == 3) {
+        if (latest != null && latest.getStatus() != null && latest.getStatus() == OrderStatusEnum.DEAL.getValue()) {
             log.info("成交并发重试命中已成交，幂等返回成功: orderId={}", orderId);
             return Result.success();
         }
@@ -236,34 +297,35 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
             return Result.fail("只能操作自己发布的运单");
         }
         // 幂等：已是发布态且未绑定承运方，说明摘单已取消成功
-        if (order.getStatus() != null && order.getStatus() == 1
+        if (order.getStatus() != null && order.getStatus() == OrderStatusEnum.PUBLISH.getValue()
                 && (order.getCarrierUserId() == null || order.getCarrierUserId().trim().isEmpty())) {
             log.info("重复取消摘单请求，幂等返回成功: orderId={}", orderId);
             return Result.success();
         }
-        if (order.getStatus() == null || order.getStatus() != 2) {
-            return Result.fail(order.getStatus() != null && order.getStatus() == 3
+        if (order.getStatus() == null || order.getStatus() != OrderStatusEnum.ACCEPT.getValue()) {
+            return Result.fail(order.getStatus() != null && order.getStatus() == OrderStatusEnum.DEAL.getValue()
                     ? "该运单已成交进入履约，无法取消摘单"
                     : "该运单当前状态不可取消摘单");
         }
 
         // CAS 原子流转：仅当仍处于「摘单(2)」才可取消，并清空承运方信息
         int rows = baseMapper.update(null, Wrappers.<Order>lambdaUpdate()
-                .set(Order::getStatus, 1)
-                .set(Order::getStatusDesc, "发布")
+                .set(Order::getStatus, OrderStatusEnum.PUBLISH.getValue())
+                .set(Order::getStatusDesc, OrderStatusEnum.PUBLISH.getName())
                 .set(Order::getCarrierUserId, null)
                 .set(Order::getCarrierUserName, null)
                 .set(Order::getCarrierMobile, null)
+                .set(Order::getCarrierName, null)
                 .set(Order::getUpdateTime, new Date())
                 .eq(Order::getId, order.getId())
-                .eq(Order::getStatus, 2));
+                .eq(Order::getStatus, OrderStatusEnum.ACCEPT.getValue()));
         if (rows == 1) {
             log.info("取消摘单成功，运单恢复发布: orderId={}", orderId);
             return Result.success();
         }
         // CAS 竞争失败：补偿确认是否已取消成功（并发重放场景）
         Order latest = baseMapper.selectById(order.getId());
-        if (latest != null && latest.getStatus() != null && latest.getStatus() == 1
+        if (latest != null && latest.getStatus() != null && latest.getStatus() == OrderStatusEnum.PUBLISH.getValue()
                 && (latest.getCarrierUserId() == null || latest.getCarrierUserId().trim().isEmpty())) {
             return Result.success();
         }
@@ -315,8 +377,8 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
         order.setCreateTime(new Date());
         order.setShipperUserName(UserContext.get().getUserName());
         order.setShipperUserId(UserContext.get().getUserId());
-        order.setStatus(1);
-        order.setStatusDesc("发布");
+        order.setStatus(OrderStatusEnum.PUBLISH.getValue());
+        order.setStatusDesc(OrderStatusEnum.PUBLISH.getName());
         return order;
     }
 }

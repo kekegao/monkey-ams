@@ -136,6 +136,7 @@ public class UserProtocolImpl implements UserProtocol {
         LoginSession session = new LoginSession();
         session.setUserId(entity.getUserId());
         session.setUserName(entity.getUserName());
+        session.setRealName(entity.getRealName());
         session.setMobile(request.getMobile());
         session.setSessionId(sessionId);
         session.setDeviceId(request.getDeviceId());

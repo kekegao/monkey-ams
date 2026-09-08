@@ -54,6 +54,14 @@ public interface OrderProtocol {
     Result<List<OrderDto>> queryCarrierOrderList(OrderQueryDTO orderQueryDTO);
 
     /**
+     * 承运方确认发货（成交(3) -> 发货(4)），启动实际运输
+     *
+     * @param orderOperateDTO 承运方操作参数（orderId 运单号）
+     * @return 发货结果
+     */
+    Result shipOrder(OrderOperateDTO orderOperateDTO);
+
+    /**
      * 货主确认成交（摘单(2) -> 成交(3)）
      *
      * @param orderOperateDTO 货主操作参数（orderId 运单号）

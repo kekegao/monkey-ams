@@ -4,6 +4,7 @@ import com.monkey.ams.app.controller.BaseController;
 import com.monkey.ams.common.response.Result;
 import com.monkey.order.bsm.biz.dto.AcceptOrderDTO;
 import com.monkey.order.bsm.biz.dto.OrderDto;
+import com.monkey.order.bsm.biz.dto.OrderOperateDTO;
 import com.monkey.order.bsm.biz.dto.OrderPublishDTO;
 import com.monkey.order.bsm.biz.dto.OrderQueryDTO;
 import com.monkey.order.bsm.biz.protocol.OrderProtocol;
@@ -32,6 +33,16 @@ public class AcceptOrderController extends BaseController {
     @PostMapping("/acceptOrder")
     public Result acceptOrder(@RequestBody AcceptOrderDTO acceptOrderDTO) {
         return orderProtocol.acceptOrder(acceptOrderDTO);
+    }
+
+    /**
+     * 承运方确认发货：成交(3) -> 发货(4)，启动实际运输
+     *
+     * POST /accept/shipOrder
+     */
+    @PostMapping("/shipOrder")
+    public Result shipOrder(@RequestBody OrderOperateDTO orderOperateDTO) {
+        return orderProtocol.shipOrder(orderOperateDTO);
     }
 
     /**

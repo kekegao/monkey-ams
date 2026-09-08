@@ -4,6 +4,7 @@ import com.alibaba.fastjson.JSONObject;
 import com.monkey.account.bsm.biz.api.AccountProtocol;
 import com.monkey.account.bsm.biz.request.FrozenMoneyAccountRequest;
 import com.monkey.ams.common.auth.context.UserContext;
+import com.monkey.ams.common.constants.BizTypeEnum;
 import com.monkey.ams.common.response.Result;
 import com.monkey.ams.common.utils.SnowflakeIdWorker;
 import com.monkey.ams.common.utils.StringGenerateUtil;
@@ -69,7 +70,7 @@ public class OrderProtocolImpl implements OrderProtocol {
         FrozenMoneyAccountRequest request = new FrozenMoneyAccountRequest();
         request.setUserId(shipperUserId);
         request.setAmount(transportMoney);
-        request.setBizType(1);
+        request.setBizType(BizTypeEnum.TRANSPORT_MONEY.getValue());
         request.setFrozenNo(StringGenerateUtil.generateOrderNo("DJ"));
         request.setOrderNo(orderId);
         Result result = accountProtocol.frozenTransportMoneyAccount(request);
@@ -197,6 +198,25 @@ public class OrderProtocolImpl implements OrderProtocol {
         } catch (Exception e) {
             log.error("摘单失败, acceptOrderDTO={}", acceptOrderDTO, e);
             return Result.fail("摘单失败，请稍后重试");
+        }
+    }
+
+    /**
+     * 承运方确认发货（成交 -> 发货）
+     * <p>
+     * 按运单号加分布式锁，配合 Service 层状态 CAS 防并发重复发货。
+     *
+     * @param orderOperateDTO 承运方操作参数（orderId 运单号）
+     * @return 发货结果
+     */
+    @DistributedLock(key = "'order:ship:' + #orderOperateDTO.orderId", waitTime = 3, leaseTime = -1)
+    @Override
+    public Result shipOrder(OrderOperateDTO orderOperateDTO) {
+        try {
+            return orderService.shipOrder(orderOperateDTO);
+        } catch (Exception e) {
+            log.error("确认发货失败, orderOperateDTO={}", orderOperateDTO, e);
+            return Result.fail("确认发货失败，请稍后重试");
         }
     }
 
