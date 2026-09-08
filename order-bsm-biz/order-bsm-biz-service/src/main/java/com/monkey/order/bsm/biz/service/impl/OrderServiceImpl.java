@@ -10,6 +10,7 @@ import com.monkey.ams.common.response.Result;
 import com.monkey.ams.common.utils.StringGenerateUtil;
 import com.monkey.order.bsm.biz.dto.AcceptOrderDTO;
 import com.monkey.order.bsm.biz.dto.OrderDto;
+import com.monkey.order.bsm.biz.dto.OrderOperateDTO;
 import com.monkey.order.bsm.biz.dto.OrderPublishDTO;
 import com.monkey.order.bsm.biz.dto.OrderQueryDTO;
 import com.monkey.order.bsm.biz.entity.Order;
@@ -135,6 +136,150 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
         return order != null
                 && order.getStatus() != null && order.getStatus() == 2
                 && carrierUserId.equals(order.getCarrierUserId());
+    }
+
+    /**
+     * 货主确认成交（状态机：摘单(2) -> 成交(3)）
+     * <p>
+     * 业务与安全规则：
+     * 1) 仅该运单货主本人可操作，身份取自登录态 UserContext，不信任请求参数；
+     * 2) 成交前必须有承运方（已摘单），保证资金/履约有明确对象；
+     * 3) CAS(where id=? and status=2) 单条 UPDATE 原子流转，外层另有分布式锁，防并发互相覆盖；
+     * 4) 幂等：已成交(3) 的运单重复请求直接返回成功，防止前端双击/重试误报。
+     * 注：运费仍处于「托管冻结」，成交不触资金，待运单完成/取消时统一解冻结算。
+     */
+    @Override
+    public Result dealOrder(OrderOperateDTO orderOperateDTO) {
+        String orderId = normalizeOperateOrderId(orderOperateDTO);
+        if (orderId == null) {
+            return Result.fail("请选择要成交的运单");
+        }
+        LoginSession session = UserContext.get();
+        if (session == null || session.getUserId() == null || session.getUserId().trim().isEmpty()) {
+            return Result.fail("登录状态已失效，请重新登录");
+        }
+        Order order = fetchOrder(orderId);
+        if (order == null) {
+            return Result.fail("运单不存在或已删除");
+        }
+        // 安全校验：仅货主本人
+        if (!session.getUserId().equals(order.getShipperUserId())) {
+            log.warn("成交失败：非货主本人操作, orderId={}, operator={}", orderId, session.getUserId());
+            return Result.fail("只能操作自己发布的运单");
+        }
+        // 幂等：已成交
+        if (order.getStatus() != null && order.getStatus() == 3) {
+            log.info("重复成交请求，幂等返回成功: orderId={}", orderId);
+            return Result.success();
+        }
+        if (order.getStatus() == null || order.getStatus() != 2) {
+            return Result.fail(order.getStatus() != null && order.getStatus() == 1
+                    ? "该运单尚未被摘单，暂无法成交"
+                    : "该运单已进入履约/结算流程，无法成交");
+        }
+        if (order.getCarrierUserId() == null || order.getCarrierUserId().trim().isEmpty()) {
+            return Result.fail("该运单缺少承运方信息，无法成交");
+        }
+
+        // CAS 原子流转：仅当仍处于「摘单(2)」才可成交
+        int rows = baseMapper.update(null, Wrappers.<Order>lambdaUpdate()
+                .set(Order::getStatus, 3)
+                .set(Order::getStatusDesc, "成交")
+                .set(Order::getUpdateTime, new Date())
+                .eq(Order::getId, order.getId())
+                .eq(Order::getStatus, 2));
+        if (rows == 1) {
+            log.info("确认成交成功: orderId={}, carrierUserId={}", orderId, order.getCarrierUserId());
+            return Result.success();
+        }
+        // CAS 竞争失败：补偿确认是否已成交成功（并发重放场景）
+        Order latest = baseMapper.selectById(order.getId());
+        if (latest != null && latest.getStatus() != null && latest.getStatus() == 3) {
+            log.info("成交并发重试命中已成交，幂等返回成功: orderId={}", orderId);
+            return Result.success();
+        }
+        return Result.fail("操作失败，运单状态已变化，请刷新后重试");
+    }
+
+    /**
+     * 货主取消承运方摘单（状态机：摘单(2) -> 发布(1)）
+     * <p>
+     * 取消成功后清空承运方信息，运单回到货源大厅重新等待其他司机摘单；
+     * 运费托管冻结保持不变，不影响下次摘单履约。
+     */
+    @Override
+    public Result cancelAccept(OrderOperateDTO orderOperateDTO) {
+        String orderId = normalizeOperateOrderId(orderOperateDTO);
+        if (orderId == null) {
+            return Result.fail("请选择要取消摘单的运单");
+        }
+        LoginSession session = UserContext.get();
+        if (session == null || session.getUserId() == null || session.getUserId().trim().isEmpty()) {
+            return Result.fail("登录状态已失效，请重新登录");
+        }
+        Order order = fetchOrder(orderId);
+        if (order == null) {
+            return Result.fail("运单不存在或已删除");
+        }
+        // 安全校验：仅货主本人
+        if (!session.getUserId().equals(order.getShipperUserId())) {
+            log.warn("取消摘单失败：非货主本人操作, orderId={}, operator={}", orderId, session.getUserId());
+            return Result.fail("只能操作自己发布的运单");
+        }
+        // 幂等：已是发布态且未绑定承运方，说明摘单已取消成功
+        if (order.getStatus() != null && order.getStatus() == 1
+                && (order.getCarrierUserId() == null || order.getCarrierUserId().trim().isEmpty())) {
+            log.info("重复取消摘单请求，幂等返回成功: orderId={}", orderId);
+            return Result.success();
+        }
+        if (order.getStatus() == null || order.getStatus() != 2) {
+            return Result.fail(order.getStatus() != null && order.getStatus() == 3
+                    ? "该运单已成交进入履约，无法取消摘单"
+                    : "该运单当前状态不可取消摘单");
+        }
+
+        // CAS 原子流转：仅当仍处于「摘单(2)」才可取消，并清空承运方信息
+        int rows = baseMapper.update(null, Wrappers.<Order>lambdaUpdate()
+                .set(Order::getStatus, 1)
+                .set(Order::getStatusDesc, "发布")
+                .set(Order::getCarrierUserId, null)
+                .set(Order::getCarrierUserName, null)
+                .set(Order::getCarrierMobile, null)
+                .set(Order::getUpdateTime, new Date())
+                .eq(Order::getId, order.getId())
+                .eq(Order::getStatus, 2));
+        if (rows == 1) {
+            log.info("取消摘单成功，运单恢复发布: orderId={}", orderId);
+            return Result.success();
+        }
+        // CAS 竞争失败：补偿确认是否已取消成功（并发重放场景）
+        Order latest = baseMapper.selectById(order.getId());
+        if (latest != null && latest.getStatus() != null && latest.getStatus() == 1
+                && (latest.getCarrierUserId() == null || latest.getCarrierUserId().trim().isEmpty())) {
+            return Result.success();
+        }
+        return Result.fail("操作失败，运单状态已变化，请刷新后重试");
+    }
+
+    /**
+     * 校验并规整货主操作参数中的运单号
+     */
+    private String normalizeOperateOrderId(OrderOperateDTO orderOperateDTO) {
+        if (orderOperateDTO == null || orderOperateDTO.getOrderId() == null) {
+            return null;
+        }
+        String orderId = orderOperateDTO.getOrderId().trim();
+        return orderId.isEmpty() ? null : orderId;
+    }
+
+    /**
+     * 按运单号定位未删除的订单（先取主键，后续 CAS 走主键索引）
+     */
+    private Order fetchOrder(String orderId) {
+        return baseMapper.selectOne(Wrappers.<Order>lambdaQuery()
+                .eq(Order::getOrderId, orderId)
+                .eq(Order::getDeleteFlag, (byte) 0)
+                .last("limit 1"));
     }
 
     @Override

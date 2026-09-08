@@ -3,6 +3,7 @@ package com.monkey.ams.app.controller.shipper;
 import com.monkey.ams.app.controller.BaseController;
 import com.monkey.ams.common.response.Result;
 import com.monkey.order.bsm.biz.dto.OrderDto;
+import com.monkey.order.bsm.biz.dto.OrderOperateDTO;
 import com.monkey.order.bsm.biz.dto.OrderPublishDTO;
 import com.monkey.order.bsm.biz.dto.OrderQueryDTO;
 import com.monkey.order.bsm.biz.protocol.OrderProtocol;
@@ -46,5 +47,25 @@ public class PublishOrderController extends BaseController {
         }
         queryDTO.setShipperUserId(getUserId());
         return orderProtocol.queryPublishOrderList(queryDTO);
+    }
+
+    /**
+     * 货主确认成交：摘单(2) -> 成交(3)
+     *
+     * POST /publishOrder/dealOrder
+     */
+    @PostMapping("/dealOrder")
+    public Result dealOrder(@RequestBody OrderOperateDTO orderOperateDTO) {
+        return orderProtocol.dealOrder(orderOperateDTO);
+    }
+
+    /**
+     * 货主取消承运方摘单：摘单(2) -> 发布(1)，恢复等待摘单
+     *
+     * POST /publishOrder/cancelAccept
+     */
+    @PostMapping("/cancelAccept")
+    public Result cancelAccept(@RequestBody OrderOperateDTO orderOperateDTO) {
+        return orderProtocol.cancelAccept(orderOperateDTO);
     }
 }

@@ -5,6 +5,7 @@ import com.baomidou.mybatisplus.spring.service.IService;
 import com.monkey.ams.common.response.Result;
 import com.monkey.order.bsm.biz.dto.AcceptOrderDTO;
 import com.monkey.order.bsm.biz.dto.OrderDto;
+import com.monkey.order.bsm.biz.dto.OrderOperateDTO;
 import com.monkey.order.bsm.biz.dto.OrderPublishDTO;
 import com.monkey.order.bsm.biz.dto.OrderQueryDTO;
 import com.monkey.order.bsm.biz.entity.Order;
@@ -55,5 +56,26 @@ public interface OrderService extends IService<Order> {
      * @return 摘单结果
      */
     Result acceptOrder(AcceptOrderDTO acceptOrderDTO);
+
+    /**
+     * 货主确认成交：将订单由 摘单(2) 流转为 成交(3)，与承运方达成正式合作。
+     * 安全要求：仅该运单货主本人可操作（登录态 UserContext 校验）；
+     * 防并发要求：外层分布式锁 + 状态 CAS，避免成交与取消摘单等操作互相覆盖；
+     * 幂等要求：已成交(3)的运单重复请求直接返回成功。
+     *
+     * @param orderOperateDTO 货主操作参数（orderId 运单号）
+     * @return 成交结果
+     */
+    Result dealOrder(OrderOperateDTO orderOperateDTO);
+
+    /**
+     * 货主取消承运方摘单：将订单由 摘单(2) 恢复为 发布(1)，并清空承运方信息，
+     * 运单回到货源大厅重新等待摘单。
+     * 安全/并发/幂等要求同上。
+     *
+     * @param orderOperateDTO 货主操作参数（orderId 运单号）
+     * @return 取消摘单结果
+     */
+    Result cancelAccept(OrderOperateDTO orderOperateDTO);
 
 }

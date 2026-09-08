@@ -11,6 +11,7 @@ import com.monkey.common.lock.annotation.DistributedLock;
 import com.monkey.common.mq.core.RabbitMqProducer;
 import com.monkey.order.bsm.biz.dto.AcceptOrderDTO;
 import com.monkey.order.bsm.biz.dto.OrderDto;
+import com.monkey.order.bsm.biz.dto.OrderOperateDTO;
 import com.monkey.order.bsm.biz.dto.OrderPublishDTO;
 import com.monkey.order.bsm.biz.dto.OrderQueryDTO;
 import com.monkey.order.bsm.biz.entity.Order;
@@ -163,6 +164,42 @@ public class OrderProtocolImpl implements OrderProtocol {
         } catch (Exception e) {
             log.error("摘单失败, acceptOrderDTO={}", acceptOrderDTO, e);
             return Result.fail("摘单失败，请稍后重试");
+        }
+    }
+
+    /**
+     * 货主确认成交（摘单 -> 成交）
+     * <p>
+     * 按运单号加分布式锁，与「取消摘单」互斥串行，配合 Service 层状态 CAS 防并发覆盖。
+     *
+     * @param orderOperateDTO 货主操作参数（orderId 运单号）
+     * @return 成交结果
+     */
+    @DistributedLock(key = "'order:deal:' + #orderOperateDTO.orderId", waitTime = 3, leaseTime = -1)
+    @Override
+    public Result dealOrder(OrderOperateDTO orderOperateDTO) {
+        try {
+            return orderService.dealOrder(orderOperateDTO);
+        } catch (Exception e) {
+            log.error("成交失败, orderOperateDTO={}", orderOperateDTO, e);
+            return Result.fail("成交失败，请稍后重试");
+        }
+    }
+
+    /**
+     * 货主取消承运方摘单（摘单 -> 发布，恢复等待摘单）
+     *
+     * @param orderOperateDTO 货主操作参数（orderId 运单号）
+     * @return 取消摘单结果
+     */
+    @DistributedLock(key = "'order:cancelAccept:' + #orderOperateDTO.orderId", waitTime = 3, leaseTime = -1)
+    @Override
+    public Result cancelAccept(OrderOperateDTO orderOperateDTO) {
+        try {
+            return orderService.cancelAccept(orderOperateDTO);
+        } catch (Exception e) {
+            log.error("取消摘单失败, orderOperateDTO={}", orderOperateDTO, e);
+            return Result.fail("取消摘单失败，请稍后重试");
         }
     }
 

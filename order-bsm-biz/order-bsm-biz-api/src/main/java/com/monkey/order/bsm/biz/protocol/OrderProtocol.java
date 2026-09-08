@@ -4,6 +4,7 @@ package com.monkey.order.bsm.biz.protocol;
 import com.monkey.ams.common.response.Result;
 import com.monkey.order.bsm.biz.dto.AcceptOrderDTO;
 import com.monkey.order.bsm.biz.dto.OrderDto;
+import com.monkey.order.bsm.biz.dto.OrderOperateDTO;
 import com.monkey.order.bsm.biz.dto.OrderPublishDTO;
 import com.monkey.order.bsm.biz.dto.OrderQueryDTO;
 
@@ -43,6 +44,22 @@ public interface OrderProtocol {
      * @return 货源订单列表，按发布时间倒序
      */
     Result<List<OrderDto>> querySourceOrderList(OrderQueryDTO orderQueryDTO);
+
+    /**
+     * 货主确认成交（摘单(2) -> 成交(3)）
+     *
+     * @param orderOperateDTO 货主操作参数（orderId 运单号）
+     * @return 成交结果
+     */
+    Result dealOrder(OrderOperateDTO orderOperateDTO);
+
+    /**
+     * 货主取消承运方摘单（摘单(2) -> 发布(1)，恢复等待摘单）
+     *
+     * @param orderOperateDTO 货主操作参数（orderId 运单号）
+     * @return 取消摘单结果
+     */
+    Result cancelAccept(OrderOperateDTO orderOperateDTO);
 
     void insertOrder(Map<String,Object> param);
 }
