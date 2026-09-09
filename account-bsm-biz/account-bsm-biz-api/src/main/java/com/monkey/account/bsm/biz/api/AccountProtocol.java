@@ -36,6 +36,23 @@ public interface AccountProtocol {
      */
     Result unfrozenTransportMoneyAccount(UnFrozenMoneyAccountRequest request);
 
+
+    /**
+     * 冻结承运方保证金
+     *
+     * @param request
+     * @return
+     */
+    Result frozenCarrierMoneyAccount(FrozenMoneyAccountRequest request);
+
+    /**
+     * 释放承运方保证金
+     *
+     * @param request
+     * @return
+     */
+    Result unFrozenCarrierMoneyAccount(UnFrozenMoneyAccountRequest request);
+
     /**
      * 查询智运宝账户
      *

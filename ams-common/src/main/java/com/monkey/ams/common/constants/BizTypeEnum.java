@@ -5,8 +5,10 @@ public enum BizTypeEnum {
 
     /** 1运费托管 */
     TRANSPORT_MONEY(1, "运费托管"),
-    /** 2提现冻结 */
-    WITHDRAW_MONEY(2, "提现冻结"),
+    /** 2发货保证金冻结 */
+    SHIP_MONEY(2, "发货保证金冻结"),
+    /** 3提现申请冻结 */
+    WITHDRAW_MONEY(3, "提现申请冻结"),
     ;
 
     private final int value;

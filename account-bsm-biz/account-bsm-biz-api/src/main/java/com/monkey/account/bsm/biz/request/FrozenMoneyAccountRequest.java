@@ -13,7 +13,7 @@ public class FrozenMoneyAccountRequest implements Serializable {
     private BigDecimal amount;
 
     /**
-     * 冻结业务类型：1运费托管 2提现冻结
+     * 冻结业务类型：1运费托管 2承运方发货保证金 3提现冻结
      */
     private Integer bizType;
 

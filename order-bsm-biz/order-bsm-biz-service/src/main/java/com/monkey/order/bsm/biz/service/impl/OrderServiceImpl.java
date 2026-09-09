@@ -1,14 +1,19 @@
 package com.monkey.order.bsm.biz.service.impl;
 
 
+import com.alibaba.fastjson.JSONObject;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.spring.service.impl.ServiceImpl;
+import com.monkey.account.bsm.biz.api.AccountProtocol;
+import com.monkey.account.bsm.biz.request.FrozenMoneyAccountRequest;
 import com.monkey.ams.common.auth.context.UserContext;
 import com.monkey.ams.common.auth.model.LoginSession;
+import com.monkey.ams.common.constants.BizTypeEnum;
 import com.monkey.ams.common.constants.OrderStatusEnum;
 import com.monkey.ams.common.response.Result;
 import com.monkey.ams.common.utils.StringGenerateUtil;
+import com.monkey.common.mq.core.RabbitMqProducer;
 import com.monkey.order.bsm.biz.dto.AcceptOrderDTO;
 import com.monkey.order.bsm.biz.dto.OrderDto;
 import com.monkey.order.bsm.biz.dto.OrderOperateDTO;
@@ -17,12 +22,17 @@ import com.monkey.order.bsm.biz.dto.OrderQueryDTO;
 import com.monkey.order.bsm.biz.entity.Order;
 import com.monkey.order.bsm.biz.mapper.OrderMapper;
 import com.monkey.order.bsm.biz.service.inf.OrderService;
+import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.dubbo.config.annotation.DubboReference;
 import org.springframework.beans.BeanUtils;
 import org.springframework.stereotype.Service;
 
+import java.math.BigDecimal;
 import java.util.Date;
 import java.util.List;
+
+import static com.monkey.ams.common.constants.AmsRabbitConstants.ROUTING_KEY;
 
 /**
  * <p>
@@ -35,6 +45,12 @@ import java.util.List;
 @Slf4j
 @Service
 public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements OrderService {
+
+    @DubboReference
+    private AccountProtocol accountProtocol;
+
+    @Resource
+    private RabbitMqProducer rabbitMqProducer;
 
     @Override
     public List<OrderDto> queryPublishOrderList(OrderQueryDTO queryDTO) {
@@ -188,6 +204,19 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
                     : "该运单已进入运输/结算流程，无法重复发货");
         }
 
+        //冻结承运方保证金
+        FrozenMoneyAccountRequest request = new FrozenMoneyAccountRequest();
+        request.setUserId(session.getUserId());
+        request.setAmount(new BigDecimal("500.00"));
+        request.setBizType(BizTypeEnum.SHIP_MONEY.getValue());
+        request.setFrozenNo(StringGenerateUtil.generateOrderNo("DJ"));
+        request.setOrderNo(orderId);
+        Result result = accountProtocol.frozenCarrierMoneyAccount(request);
+        if(!result.isSuccess()) {
+            log.warn("冻结承运方发货保证金失败: userId={}, amount={}, reason={}", request.getUserId(), request.getAmount(), result.getMessage());
+            return result;
+        }
+
         // CAS 原子流转：仅当仍处于「成交(3)」才可发货
         int rows = baseMapper.update(null, Wrappers.<Order>lambdaUpdate()
                 .set(Order::getStatus, OrderStatusEnum.SHIP.getValue())
@@ -205,6 +234,13 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
             log.info("发货并发重试命中已发货，幂等返回成功: orderId={}", orderId);
             return Result.success();
         }
+
+        //如果确认发货失败，发送mq，回滚释放
+        JSONObject data = new JSONObject();
+        data.put("userId", request.getUserId());
+        data.put("amount", request.getAmount());
+        data.put("frozenNo", request.getFrozenNo());
+        rabbitMqProducer.send(ROUTING_KEY, data);
         return Result.fail("操作失败，运单状态已变化，请刷新后重试");
     }
 
