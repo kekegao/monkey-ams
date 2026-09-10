@@ -33,6 +33,7 @@ import java.util.Date;
 import java.util.List;
 
 import static com.monkey.ams.common.constants.AmsRabbitConstants.ROUTING_KEY;
+import static com.monkey.ams.common.constants.AmsRabbitConstants.SHIP_MONEY_ROUTING_KEY;
 
 /**
  * <p>
@@ -240,7 +241,7 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
         data.put("userId", request.getUserId());
         data.put("amount", request.getAmount());
         data.put("frozenNo", request.getFrozenNo());
-        rabbitMqProducer.send(ROUTING_KEY, data);
+        rabbitMqProducer.send(SHIP_MONEY_ROUTING_KEY, data);
         return Result.fail("操作失败，运单状态已变化，请刷新后重试");
     }
 
