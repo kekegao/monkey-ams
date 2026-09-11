@@ -243,8 +243,13 @@ public class AccountProtocolImpl implements AccountProtocol {
         if(request == null || request.getUserId() == null){
             return Result.fail("请求对象为空");
         }
-        // 参数校验：解冻发货保证金必须大于0
-        if(request.getAmount() == null || request.getAmount().compareTo(BigDecimal.ZERO) <= 0) {
+        boolean byFrozenNo = request.getFrozenNo() != null && !request.getFrozenNo().trim().isEmpty();
+        // 未指定冻结流水号时，必须能按业务单号定位，避免误释放他人或他单保证金
+        if(!byFrozenNo && (request.getOrderNo() == null || request.getOrderNo().trim().isEmpty())) {
+            return Result.fail("缺少冻结流水号或关联单号");
+        }
+        // 参数校验：按流水号释放时解冻发货保证金必须大于0
+        if(byFrozenNo && (request.getAmount() == null || request.getAmount().compareTo(BigDecimal.ZERO) <= 0)) {
             return Result.fail("发货保证金金额必须大于0");
         }
 
@@ -254,20 +259,40 @@ public class AccountProtocolImpl implements AccountProtocol {
         }
         AccountDto accountDto = result.getData();
 
+        // 定位待解冻的冻结明细：优先按冻结流水号；回单确认等未回传流水号的场景，按「业务单号 + 发货保证金」定位
+        FrozenDetail frozenDetail;
+        if(byFrozenNo) {
+            frozenDetail = frozenDetailService.lambdaQuery()
+                    .eq(FrozenDetail::getUserId, request.getUserId())
+                    .eq(FrozenDetail::getFrozenNo, request.getFrozenNo())
+                    .eq(FrozenDetail::getStatus,1)
+                    .one();
+        } else {
+            frozenDetail = frozenDetailService.lambdaQuery()
+                    .eq(FrozenDetail::getUserId, request.getUserId())
+                    .eq(FrozenDetail::getBizType, BizTypeEnum.SHIP_MONEY.getValue())
+                    .eq(FrozenDetail::getOrderNo, request.getOrderNo())
+                    .eq(FrozenDetail::getStatus,1)
+                    .orderByDesc(FrozenDetail::getFrozenTime)
+                    .last("limit 1")
+                    .one();
+        }
+        // 幂等：明细已解冻时查不到「冻结中」记录，重复消息不会重复释放
+        if(frozenDetail == null) {
+            return Result.fail("无冻结记录，请核实!");
+        }
+
+        // 释放金额以冻结明细为准，避免调用方传参与实际冻结金额不一致造成错账
+        BigDecimal releaseAmount = frozenDetail.getAmount() != null ? frozenDetail.getAmount() : request.getAmount();
+        if(releaseAmount == null || releaseAmount.compareTo(BigDecimal.ZERO) <= 0) {
+            return Result.fail("冻结金额异常，无法释放");
+        }
+
         // 校验冻结余额是否足够释放
         BigDecimal frozenAmount = accountDto.getFrozenAmount() == null
                 ? BigDecimal.ZERO : accountDto.getFrozenAmount();
-        if(frozenAmount.compareTo(request.getAmount()) < 0) {
+        if(frozenAmount.compareTo(releaseAmount) < 0) {
             return Result.fail("冻结金额不足，无法释放");
-        }
-
-        FrozenDetail frozenDetail = frozenDetailService.lambdaQuery()
-                .eq(FrozenDetail::getUserId, request.getUserId())
-                .eq(FrozenDetail::getFrozenNo, request.getFrozenNo())
-                .eq(FrozenDetail::getStatus,1)
-                .one();
-        if(frozenDetail == null) {
-            return Result.fail("无冻结记录，请核实!");
         }
 
         FrozenDetail updateFrozenDetail = new FrozenDetail();
@@ -281,8 +306,8 @@ public class AccountProtocolImpl implements AccountProtocol {
 
 
         // 释放发货保证金：冻结金额扣减保证金，可用余额加回保证金
-        BigDecimal newFrozenAmount = frozenAmount.subtract(request.getAmount());
-        BigDecimal newAvailableAmount = accountDto.getAvailableAmount().add(request.getAmount());
+        BigDecimal newFrozenAmount = frozenAmount.subtract(releaseAmount);
+        BigDecimal newAvailableAmount = accountDto.getAvailableAmount().add(releaseAmount);
 
         Account account = new Account();
         account.setId(accountDto.getId());
@@ -292,8 +317,9 @@ public class AccountProtocolImpl implements AccountProtocol {
         account.setUpdateName(accountDto.getRealName());
         accountService.updateById(account);
 
-        log.info("释放发货保证金成功: userId={}, amount={}, frozenAmount={}, availableAmount={}",
-                request.getUserId(), request.getAmount(), newFrozenAmount, newAvailableAmount);
+        log.info("释放发货保证金成功: userId={}, frozenNo={}, orderNo={}, amount={}, frozenAmount={}, availableAmount={}",
+                request.getUserId(), frozenDetail.getFrozenNo(), frozenDetail.getOrderNo(),
+                releaseAmount, newFrozenAmount, newAvailableAmount);
 
         return Result.success();
     }

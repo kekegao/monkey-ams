@@ -68,4 +68,14 @@ public class PublishOrderController extends BaseController {
     public Result cancelAccept(@RequestBody OrderOperateDTO orderOperateDTO) {
         return orderProtocol.cancelAccept(orderOperateDTO);
     }
+
+    /**
+     * 货主回单确认：确认收货(5) -> 回单确认(6)，成功后释放承运方发货保证金
+     *
+     * POST /publishOrder/receiptConfirm
+     */
+    @PostMapping("/receiptConfirm")
+    public Result receiptConfirm(@RequestBody OrderOperateDTO orderOperateDTO) {
+        return orderProtocol.receiptConfirm(orderOperateDTO);
+    }
 }

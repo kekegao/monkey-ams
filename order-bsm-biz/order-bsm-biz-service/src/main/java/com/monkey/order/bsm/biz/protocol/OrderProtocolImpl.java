@@ -221,6 +221,45 @@ public class OrderProtocolImpl implements OrderProtocol {
     }
 
     /**
+     * 确认收货（发货 -> 确认收货）
+     * <p>
+     * 按运单号加分布式锁，配合 Service 层状态 CAS 防并发重复确认收货。
+     *
+     * @param orderOperateDTO 承运方操作参数（orderId 运单号）
+     * @return 确认收货结果
+     */
+    @DistributedLock(key = "'order:confirmReceipt:' + #orderOperateDTO.orderId", waitTime = 3, leaseTime = -1)
+    @Override
+    public Result confirmReceipt(OrderOperateDTO orderOperateDTO) {
+        try {
+            return orderService.confirmReceipt(orderOperateDTO);
+        } catch (Exception e) {
+            log.error("确认收货失败, orderOperateDTO={}", orderOperateDTO, e);
+            return Result.fail("确认收货失败，请稍后重试");
+        }
+    }
+
+    /**
+     * 货主回单确认（确认收货 -> 回单确认）
+     * <p>
+     * 按运单号加分布式锁，配合 Service 层状态 CAS 防并发重复回单确认；
+     * 成功后由 Service 层发 MQ 异步释放承运方发货保证金。
+     *
+     * @param orderOperateDTO 货主操作参数（orderId 运单号）
+     * @return 回单确认结果
+     */
+    @DistributedLock(key = "'order:receiptConfirm:' + #orderOperateDTO.orderId", waitTime = 3, leaseTime = -1)
+    @Override
+    public Result receiptConfirm(OrderOperateDTO orderOperateDTO) {
+        try {
+            return orderService.receiptConfirm(orderOperateDTO);
+        } catch (Exception e) {
+            log.error("回单确认失败, orderOperateDTO={}", orderOperateDTO, e);
+            return Result.fail("回单确认失败，请稍后重试");
+        }
+    }
+
+    /**
      * 货主确认成交（摘单 -> 成交）
      * <p>
      * 按运单号加分布式锁，与「取消摘单」互斥串行，配合 Service 层状态 CAS 防并发覆盖。

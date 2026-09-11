@@ -246,6 +246,147 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
     }
 
     /**
+     * 确认收货（状态机：发货(4) -> 确认收货(5)）
+     * <p>
+     * 业务与安全规则：
+     * 1) 仅该运单承运方本人可操作，身份取自登录态 UserContext，不信任请求参数；
+     * 2) 仅「发货(4)」状态可确认收货，尚未发货的运单不允许确认收货；
+     * 3) CAS(where id=? and status=4) 单条 UPDATE 原子流转，外层另有分布式锁，防并发重复确认；
+     * 4) 幂等：已确认收货(5) 的运单重复请求直接返回成功，防止前端双击/重试误报。
+     */
+    @Override
+    public Result confirmReceipt(OrderOperateDTO orderOperateDTO) {
+        String orderId = normalizeOperateOrderId(orderOperateDTO);
+        if (orderId == null) {
+            return Result.fail("请选择要确认收货的运单");
+        }
+        LoginSession session = UserContext.get();
+        if (session == null || session.getUserId() == null || session.getUserId().trim().isEmpty()) {
+            return Result.fail("登录状态已失效，请重新登录");
+        }
+        Order order = fetchOrder(orderId);
+        if (order == null) {
+            return Result.fail("运单不存在或已删除");
+        }
+        // 安全校验：仅承运方本人
+        if (order.getCarrierUserId() == null || !session.getUserId().equals(order.getCarrierUserId())) {
+            log.warn("确认收货失败：非承运方本人操作, orderId={}, operator={}", orderId, session.getUserId());
+            return Result.fail("只能操作自己承运的运单");
+        }
+        // 幂等：已确认收货
+        if (order.getStatus() != null && order.getStatus() == OrderStatusEnum.CONFIRM_RECEIPT.getValue()) {
+            log.info("重复确认收货请求，幂等返回成功: orderId={}", orderId);
+            return Result.success();
+        }
+        if (order.getStatus() == null || order.getStatus() != OrderStatusEnum.SHIP.getValue()) {
+            return Result.fail(order.getStatus() != null && order.getStatus() == OrderStatusEnum.DEAL.getValue()
+                    ? "该运单尚未发货，请先确认发货"
+                    : "该运单当前状态不可确认收货");
+        }
+
+        // CAS 原子流转：仅当仍处于「发货(4)」才可确认收货
+        int rows = baseMapper.update(null, Wrappers.<Order>lambdaUpdate()
+                .set(Order::getStatus, OrderStatusEnum.CONFIRM_RECEIPT.getValue())
+                .set(Order::getStatusDesc, OrderStatusEnum.CONFIRM_RECEIPT.getName())
+                .set(Order::getUpdateTime, new Date())
+                .eq(Order::getId, order.getId())
+                .eq(Order::getStatus, OrderStatusEnum.SHIP.getValue()));
+        if (rows == 1) {
+            log.info("确认收货成功: orderId={}, carrierUserId={}", orderId, session.getUserId());
+            return Result.success();
+        }
+        // CAS 竞争失败：补偿确认是否已确认收货成功（并发重放场景）
+        Order latest = baseMapper.selectById(order.getId());
+        if (latest != null && latest.getStatus() != null && latest.getStatus() == OrderStatusEnum.CONFIRM_RECEIPT.getValue()) {
+            log.info("确认收货并发重试命中已收货，幂等返回成功: orderId={}", orderId);
+            return Result.success();
+        }
+        return Result.fail("操作失败，运单状态已变化，请刷新后重试");
+    }
+
+    /**
+     * 回单确认（状态机：确认收货(5) -> 回单确认(6)）
+     * <p>
+     * 业务与安全规则：
+     * 1) 仅该运单货主本人可操作，身份取自登录态 UserContext，不信任请求参数；
+     * 2) 仅「确认收货(5)」状态可回单确认，未确认收货的运单不允许回单确认；
+     * 3) CAS(where id=? and status=5) 单条 UPDATE 原子流转，外层另有分布式锁，防并发重复确认；
+     * 4) 幂等：已回单确认(6) 的运单重复请求直接返回成功，防止前端双击/重试误报；
+     * 5) 资金动作：回单确认成功后异步释放承运方发货保证金（发 MQ，账户模块消费解冻，最终一致）。
+     */
+    @Override
+    public Result receiptConfirm(OrderOperateDTO orderOperateDTO) {
+        String orderId = normalizeOperateOrderId(orderOperateDTO);
+        if (orderId == null) {
+            return Result.fail("请选择要回单确认的运单");
+        }
+        LoginSession session = UserContext.get();
+        if (session == null || session.getUserId() == null || session.getUserId().trim().isEmpty()) {
+            return Result.fail("登录状态已失效，请重新登录");
+        }
+        Order order = fetchOrder(orderId);
+        if (order == null) {
+            return Result.fail("运单不存在或已删除");
+        }
+        // 安全校验：仅货主本人
+        if (!session.getUserId().equals(order.getShipperUserId())) {
+            log.warn("回单确认失败：非货主本人操作, orderId={}, operator={}", orderId, session.getUserId());
+            return Result.fail("只能操作自己发布的运单");
+        }
+        // 幂等：已回单确认
+        if (order.getStatus() != null && order.getStatus() == OrderStatusEnum.RECEIPT_CONFIRM.getValue()) {
+            log.info("重复回单确认请求，幂等返回成功: orderId={}", orderId);
+            return Result.success();
+        }
+        if (order.getStatus() == null || order.getStatus() != OrderStatusEnum.CONFIRM_RECEIPT.getValue()) {
+            return Result.fail(order.getStatus() != null && order.getStatus() == OrderStatusEnum.SHIP.getValue()
+                    ? "该运单尚未确认收货，请等待承运方确认收货后再回单确认"
+                    : "该运单当前状态不可回单确认");
+        }
+        if (order.getCarrierUserId() == null || order.getCarrierUserId().trim().isEmpty()) {
+            return Result.fail("该运单缺少承运方信息，无法回单确认");
+        }
+
+        // CAS 原子流转：仅当仍处于「确认收货(5)」才可回单确认
+        int rows = baseMapper.update(null, Wrappers.<Order>lambdaUpdate()
+                .set(Order::getStatus, OrderStatusEnum.RECEIPT_CONFIRM.getValue())
+                .set(Order::getStatusDesc, OrderStatusEnum.RECEIPT_CONFIRM.getName())
+                .set(Order::getUpdateTime, new Date())
+                .eq(Order::getId, order.getId())
+                .eq(Order::getStatus, OrderStatusEnum.CONFIRM_RECEIPT.getValue()));
+        if (rows == 1) {
+            log.info("回单确认成功: orderId={}, shipperUserId={}", orderId, session.getUserId());
+            // 回单确认成功 -> 异步释放承运方发货保证金
+            releaseCarrierShipMoney(order);
+            return Result.success();
+        }
+        // CAS 竞争失败：补偿确认是否已回单确认成功（并发重放场景，此处不再重复发释放消息）
+        Order latest = baseMapper.selectById(order.getId());
+        if (latest != null && latest.getStatus() != null && latest.getStatus() == OrderStatusEnum.RECEIPT_CONFIRM.getValue()) {
+            log.info("回单确认并发重试命中已确认，幂等返回成功: orderId={}", orderId);
+            return Result.success();
+        }
+        return Result.fail("操作失败，运单状态已变化，请刷新后重试");
+    }
+
+    /**
+     * 回单确认成功后异步释放承运方发货保证金。
+     * <p>
+     * 通过 MQ 解耦账户模块：账户侧按「userId + orderNo(运单号) + 业务类型=发货保证金 + 冻结中」定位冻结明细解冻，
+     * 释放金额以冻结明细为准；重复消息查不到冻结中明细，天然幂等，不会重复释放。
+     *
+     * @param order 已回单确认的运单
+     */
+    private void releaseCarrierShipMoney(Order order) {
+        JSONObject data = new JSONObject();
+        data.put("userId", order.getCarrierUserId());
+        data.put("orderNo", order.getOrderId());
+        data.put("bizType", BizTypeEnum.SHIP_MONEY.getValue());
+        rabbitMqProducer.send(SHIP_MONEY_ROUTING_KEY, data);
+        log.info("已发送承运方发货保证金释放消息: orderId={}, carrierUserId={}", order.getOrderId(), order.getCarrierUserId());
+    }
+
+    /**
      * 货主确认成交（状态机：摘单(2) -> 成交(3)）
      * <p>
      * 业务与安全规则：

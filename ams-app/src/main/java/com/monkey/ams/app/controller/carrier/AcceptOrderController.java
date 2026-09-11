@@ -46,6 +46,16 @@ public class AcceptOrderController extends BaseController {
     }
 
     /**
+     * 确认收货：发货(4) -> 确认收货(5)，确认货物已送达
+     *
+     * POST /accept/confirmReceipt
+     */
+    @PostMapping("/confirmReceipt")
+    public Result confirmReceipt(@RequestBody OrderOperateDTO orderOperateDTO) {
+        return orderProtocol.confirmReceipt(orderOperateDTO);
+    }
+
+    /**
      * 承运端货源大厅列表（可摘货源 / 线路搜索）
      *
      * POST /accept/list

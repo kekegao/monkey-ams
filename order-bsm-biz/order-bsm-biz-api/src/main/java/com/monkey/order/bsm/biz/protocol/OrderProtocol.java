@@ -62,6 +62,22 @@ public interface OrderProtocol {
     Result shipOrder(OrderOperateDTO orderOperateDTO);
 
     /**
+     * 确认收货（发货(4) -> 确认收货(5)），确认货物已送达
+     *
+     * @param orderOperateDTO 承运方操作参数（orderId 运单号）
+     * @return 确认收货结果
+     */
+    Result confirmReceipt(OrderOperateDTO orderOperateDTO);
+
+    /**
+     * 货主回单确认（确认收货(5) -> 回单确认(6)），回单确认成功后释放承运方发货保证金
+     *
+     * @param orderOperateDTO 货主操作参数（orderId 运单号）
+     * @return 回单确认结果
+     */
+    Result receiptConfirm(OrderOperateDTO orderOperateDTO);
+
+    /**
      * 货主确认成交（摘单(2) -> 成交(3)）
      *
      * @param orderOperateDTO 货主操作参数（orderId 运单号）

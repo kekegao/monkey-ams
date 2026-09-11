@@ -77,6 +77,29 @@ public interface OrderService extends IService<Order> {
     Result shipOrder(OrderOperateDTO orderOperateDTO);
 
     /**
+     * 确认收货：将订单由 发货(4) 流转为 确认收货(5)，确认货物已送达。
+     * 安全要求：仅该运单承运方本人可操作（登录态 UserContext 校验）；
+     * 防并发要求：外层分布式锁 + 状态 CAS，避免重复确认或与其它流转操作互相覆盖；
+     * 幂等要求：已确认收货(5)的运单重复请求直接返回成功。
+     *
+     * @param orderOperateDTO 承运方操作参数（orderId 运单号）
+     * @return 确认收货结果
+     */
+    Result confirmReceipt(OrderOperateDTO orderOperateDTO);
+
+    /**
+     * 货主回单确认：将订单由 确认收货(5) 流转为 回单确认(6)，标志回单签收核对完成。
+     * 安全要求：仅该运单货主本人可操作（登录态 UserContext 校验）；
+     * 防并发要求：外层分布式锁 + 状态 CAS，避免重复确认；
+     * 幂等要求：已回单确认(6)的运单重复请求直接返回成功；
+     * 资金动作：回单确认成功后异步释放承运方的发货保证金（MQ 解耦，账户模块消费解冻）。
+     *
+     * @param orderOperateDTO 货主操作参数（orderId 运单号）
+     * @return 回单确认结果
+     */
+    Result receiptConfirm(OrderOperateDTO orderOperateDTO);
+
+    /**
      * 货主确认成交：将订单由 摘单(2) 流转为 成交(3)，与承运方达成正式合作。
      * 安全要求：仅该运单货主本人可操作（登录态 UserContext 校验）；
      * 防并发要求：外层分布式锁 + 状态 CAS，避免成交与取消摘单等操作互相覆盖；
