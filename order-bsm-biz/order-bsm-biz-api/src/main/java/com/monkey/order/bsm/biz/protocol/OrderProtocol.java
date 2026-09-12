@@ -78,6 +78,14 @@ public interface OrderProtocol {
     Result receiptConfirm(OrderOperateDTO orderOperateDTO);
 
     /**
+     * 货主结算申请（回单确认(6) -> 结算申请(7)），发起托管运费结算
+     *
+     * @param orderOperateDTO 货主操作参数（orderId 运单号）
+     * @return 结算申请结果
+     */
+    Result settleApply(OrderOperateDTO orderOperateDTO);
+
+    /**
      * 货主确认成交（摘单(2) -> 成交(3)）
      *
      * @param orderOperateDTO 货主操作参数（orderId 运单号）

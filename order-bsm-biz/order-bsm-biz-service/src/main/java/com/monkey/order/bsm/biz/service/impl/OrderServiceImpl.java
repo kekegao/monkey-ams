@@ -22,6 +22,9 @@ import com.monkey.order.bsm.biz.dto.OrderQueryDTO;
 import com.monkey.order.bsm.biz.entity.Order;
 import com.monkey.order.bsm.biz.mapper.OrderMapper;
 import com.monkey.order.bsm.biz.service.inf.OrderService;
+import com.monkey.settlement.bsm.biz.api.SettlementProtocol;
+import com.monkey.settlement.bsm.biz.dto.SettlementApplyResultDto;
+import com.monkey.settlement.bsm.biz.request.SettlementApplyRequest;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.dubbo.config.annotation.DubboReference;
@@ -49,6 +52,12 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
 
     @DubboReference
     private AccountProtocol accountProtocol;
+
+    /**
+     * 清算服务（settlement-bsm-biz-service）：结算申请时生成货主/承运方清算单
+     */
+    @DubboReference
+    private SettlementProtocol settlementProtocol;
 
     @Resource
     private RabbitMqProducer rabbitMqProducer;
@@ -367,6 +376,130 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
             return Result.success();
         }
         return Result.fail("操作失败，运单状态已变化，请刷新后重试");
+    }
+
+    /**
+     * 货主结算申请（状态机：回单确认(6) -> 结算申请(7)）
+     * <p>
+     * 业务与安全规则：
+     * 1) 仅该运单货主本人可操作，身份取自登录态 UserContext，不信任请求参数；
+     * 2) 仅「回单确认(6)」状态可申请结算，保证结算前置履约动作已完成；
+     * 3) 先向清算服务申请生成「货主清算单 + 承运方清算单」（清算服务内同一事务落库、按运单号幂等），
+     *    再 CAS(where id=? and status=6) 原子流转，避免出现「订单已申请但清算单缺失」的脏状态：
+     *    清算服务不可用/超时则订单保持回单确认(6)，用户重试即可（清算服务幂等，不会重复建单）；
+     * 4) 幂等：已处于结算申请(7)及之后状态的运单，重复请求仍会调用清算服务做一次幂等补齐（自愈），
+     *    之后直接返回成功，防止前端双击/重试误报；
+     * 5) 资金动作：申请仅推进结算流程，托管中的运费保持冻结，
+     *    实际运费扣划/入账承运方由后续「结算(8)」阶段（settlement 模块）统一处理。
+     */
+    @Override
+    public Result settleApply(OrderOperateDTO orderOperateDTO) {
+        String orderId = normalizeOperateOrderId(orderOperateDTO);
+        if (orderId == null) {
+            return Result.fail("请选择要申请结算的运单");
+        }
+        LoginSession session = UserContext.get();
+        if (session == null || session.getUserId() == null || session.getUserId().trim().isEmpty()) {
+            return Result.fail("登录状态已失效，请重新登录");
+        }
+        Order order = fetchOrder(orderId);
+        if (order == null) {
+            return Result.fail("运单不存在或已删除");
+        }
+        // 安全校验：仅货主本人
+        if (!session.getUserId().equals(order.getShipperUserId())) {
+            log.warn("结算申请失败：非货主本人操作, orderId={}, operator={}", orderId, session.getUserId());
+            return Result.fail("只能操作自己发布的运单");
+        }
+        // 幂等标记：已结算申请或已进入后续结算流程
+        boolean settlementApplied = order.getStatus() != null
+                && order.getStatus() >= OrderStatusEnum.SETTLEMENT_APPLY.getValue();
+        if (!settlementApplied) {
+            if (order.getStatus() == null || order.getStatus() != OrderStatusEnum.RECEIPT_CONFIRM.getValue()) {
+                return Result.fail("该运单尚未回单确认，请等待回单确认后再申请结算");
+            }
+            if (order.getCarrierUserId() == null || order.getCarrierUserId().trim().isEmpty()) {
+                return Result.fail("该运单缺少承运方信息，无法申请结算");
+            }
+            if (order.getTransportMoney() == null || order.getTransportMoney().signum() <= 0) {
+                log.warn("结算申请失败：运单运费异常, orderId={}, transportMoney={}", orderId, order.getTransportMoney());
+                return Result.fail("该运单运费信息异常，无法申请结算");
+            }
+        }
+
+        // 生成（或幂等补齐）货主清算单与承运方清算单：失败则不推进订单状态，不留脏数据
+        Result<SettlementApplyResultDto> billResult = generateSettlementBills(order, session);
+        if (billResult == null || !billResult.isSuccess()) {
+            String message = (billResult == null || billResult.getMessage() == null)
+                    ? "结算单生成失败，请稍后重试" : billResult.getMessage();
+            log.warn("结算申请失败：清算单生成异常, orderId={}, message={}", orderId, message);
+            return Result.fail(message);
+        }
+        if (settlementApplied) {
+            log.info("重复结算申请请求，清算单已就绪，幂等返回成功: orderId={}, status={}", orderId, order.getStatus());
+            return Result.success();
+        }
+
+        // CAS 原子流转：仅当仍处于「回单确认(6)」才可申请结算
+        int rows = baseMapper.update(null, Wrappers.<Order>lambdaUpdate()
+                .set(Order::getStatus, OrderStatusEnum.SETTLEMENT_APPLY.getValue())
+                .set(Order::getStatusDesc, OrderStatusEnum.SETTLEMENT_APPLY.getName())
+                .set(Order::getUpdateTime, new Date())
+                .eq(Order::getId, order.getId())
+                .eq(Order::getStatus, OrderStatusEnum.RECEIPT_CONFIRM.getValue()));
+        if (rows == 1) {
+            SettlementApplyResultDto bills = billResult.getData();
+            log.info("结算申请成功: orderId={}, shipperUserId={}, shipperSettlementNo={}, carrierSettlementNo={}",
+                    orderId, session.getUserId(),
+                    bills == null ? null : bills.getShipperSettlementNo(),
+                    bills == null ? null : bills.getCarrierSettlementNo());
+            return Result.success();
+        }
+        // CAS 竞争失败：补偿确认是否已申请成功（并发重放场景，清算单已幂等生成，不会重复）
+        Order latest = baseMapper.selectById(order.getId());
+        if (latest != null && latest.getStatus() != null && latest.getStatus() >= OrderStatusEnum.SETTLEMENT_APPLY.getValue()) {
+            log.info("结算申请并发重试命中已申请，幂等返回成功: orderId={}", orderId);
+            return Result.success();
+        }
+        return Result.fail("操作失败，运单状态已变化，请刷新后重试");
+    }
+
+    /**
+     * 调用清算服务生成（或幂等补齐）该运单的货主清算单与承运方清算单。
+     * <p>
+     * 幂等与容错说明：
+     * 1) 清算服务以运单号为幂等键（表上 uk_order_id 唯一索引兜底），重复调用只返回既有单据，不会重复建单；
+     * 2) 调用异常（Dubbo 超时/熔断/网络抖动）统一转为失败结果，订单状态保持不变，
+     *    由用户重试或后续补偿触发，最终一致，不会产生"已申请但无清算单"的数据；
+     * 3) 金额（应付总额、服务费、实收金额）一律由清算服务端按运单运费与服务费率计算，
+     *    订单侧只透传运单快照，不做任何金额加工，防止金额被篡改。
+     *
+     * @param order   待申请结算的运单
+     * @param session 当前登录货主
+     * @return 清算单信息（失败时 message 为可直接展示的提示）
+     */
+    private Result<SettlementApplyResultDto> generateSettlementBills(Order order, LoginSession session) {
+        try {
+            SettlementApplyRequest request = new SettlementApplyRequest();
+            request.setOrderId(order.getOrderId());
+            request.setShipperUserId(order.getShipperUserId());
+            request.setShipperUserName(order.getShipperUserName());
+            request.setShipperName(order.getShipperName());
+            request.setShipperMobile(order.getShipperMobile());
+            request.setCarrierUserId(order.getCarrierUserId());
+            request.setCarrierUserName(order.getCarrierUserName());
+            request.setCarrierName(order.getCarrierName());
+            request.setCarrierMobile(order.getCarrierMobile());
+            request.setTransportMoney(order.getTransportMoney());
+            // 发布货源时按运费金额冻结托管（未额外冻结货主服务费），故托管金额以运费为准
+            request.setFrozenAmount(order.getTransportMoney());
+            request.setOperator(session == null ? null : session.getUserId());
+            request.setRemark("货主发起结算申请，系统自动生成货主/承运方清算单");
+            return settlementProtocol.applySettlement(request);
+        } catch (Exception e) {
+            log.error("调用清算服务生成清算单异常: orderId={}", order.getOrderId(), e);
+            return Result.fail("结算单生成失败，请稍后重试");
+        }
     }
 
     /**

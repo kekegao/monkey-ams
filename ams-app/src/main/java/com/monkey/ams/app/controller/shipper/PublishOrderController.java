@@ -78,4 +78,14 @@ public class PublishOrderController extends BaseController {
     public Result receiptConfirm(@RequestBody OrderOperateDTO orderOperateDTO) {
         return orderProtocol.receiptConfirm(orderOperateDTO);
     }
+
+    /**
+     * 货主结算申请：回单确认(6) -> 结算申请(7)，发起托管运费结算
+     *
+     * POST /publishOrder/settleApply
+     */
+    @PostMapping("/settleApply")
+    public Result settleApply(@RequestBody OrderOperateDTO orderOperateDTO) {
+        return orderProtocol.settleApply(orderOperateDTO);
+    }
 }

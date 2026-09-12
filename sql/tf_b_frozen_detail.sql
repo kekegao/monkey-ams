@@ -27,7 +27,7 @@ DROP TABLE IF EXISTS `tf_b_frozen_detail`;
 
 CREATE TABLE `tf_b_frozen_detail` (
       `id`           BIGINT       NOT NULL AUTO_INCREMENT COMMENT '主键ID',
-      `user_id`      VARCHAR(64)  NOT NULL                COMMENT '账户所属用户ID（tf_b_account.user_id）',
+      `user_id`      VARCHAR(64)  DEFAULT NULL            COMMENT '账户所属用户ID（tf_b_account.user_id）',
       `user_name`    VARCHAR(64)  DEFAULT NULL            COMMENT '用户名称（冗余，便于直接展示）',
       `biz_type`     TINYINT      DEFAULT 1      COMMENT '冻结业务类型：1运费托管 2提现冻结',
       `biz_type_name` VARCHAR(32) DEFAULT NULL            COMMENT '业务类型名称（冗余）：运费托管/提现冻结',

@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.monkey.settlement.bsm.biz.mapper.SettlementShipperMapper">
+
+    <!-- 通用查询映射结果 -->
+    <resultMap id="BaseResultMap" type="com.monkey.settlement.bsm.biz.entity.SettlementShipper">
+        <id column="id" property="id" />
+        <result column="settlement_no" property="settlementNo" />
+        <result column="order_id" property="orderId" />
+        <result column="shipper_user_id" property="shipperUserId" />
+        <result column="shipper_user_name" property="shipperUserName" />
+        <result column="shipper_name" property="shipperName" />
+        <result column="shipper_mobile" property="shipperMobile" />
+        <result column="carrier_user_id" property="carrierUserId" />
+        <result column="carrier_name" property="carrierName" />
+        <result column="transport_money" property="transportMoney" />
+        <result column="service_fee_rate" property="serviceFeeRate" />
+        <result column="service_fee" property="serviceFee" />
+        <result column="discount_amount" property="discountAmount" />
+        <result column="other_amount" property="otherAmount" />
+        <result column="payable_amount" property="payableAmount" />
+        <result column="frozen_no" property="frozenNo" />
+        <result column="frozen_amount" property="frozenAmount" />
+        <result column="paid_amount" property="paidAmount" />
+        <result column="refund_amount" property="refundAmount" />
+        <result column="settle_batch_no" property="settleBatchNo" />
+        <result column="status" property="status" />
+        <result column="status_desc" property="statusDesc" />
+        <result column="invoice_status" property="invoiceStatus" />
+        <result column="apply_time" property="applyTime" />
+        <result column="settle_time" property="settleTime" />
+        <result column="remark" property="remark" />
+        <result column="delete_flag" property="deleteFlag" />
+        <result column="create_time" property="createTime" />
+        <result column="create_name" property="createName" />
+        <result column="update_time" property="updateTime" />
+        <result column="update_name" property="updateName" />
+    </resultMap>
+
+    <!-- 通用查询结果列 -->
+    <sql id="Base_Column_List">
+        id, settlement_no, order_id, shipper_user_id, shipper_user_name, shipper_name, shipper_mobile, carrier_user_id, carrier_name, transport_money, service_fee_rate, service_fee, discount_amount, other_amount, payable_amount, frozen_no, frozen_amount, paid_amount, refund_amount, settle_batch_no, status, status_desc, invoice_status, apply_time, settle_time, remark, delete_flag, create_time, create_name, update_time, update_name
+    </sql>
+
+</mapper>

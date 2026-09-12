@@ -260,6 +260,26 @@ public class OrderProtocolImpl implements OrderProtocol {
     }
 
     /**
+     * 货主结算申请（回单确认 -> 结算申请）
+     * <p>
+     * 按运单号加分布式锁，配合 Service 层状态 CAS 防并发重复申请；
+     * 申请仅推进结算流程，托管运费仍在冻结中，实际结算在后续「结算(8)」阶段完成。
+     *
+     * @param orderOperateDTO 货主操作参数（orderId 运单号）
+     * @return 结算申请结果
+     */
+    @DistributedLock(key = "'order:settleApply:' + #orderOperateDTO.orderId", waitTime = 3, leaseTime = -1)
+    @Override
+    public Result settleApply(OrderOperateDTO orderOperateDTO) {
+        try {
+            return orderService.settleApply(orderOperateDTO);
+        } catch (Exception e) {
+            log.error("结算申请失败, orderOperateDTO={}", orderOperateDTO, e);
+            return Result.fail("结算申请失败，请稍后重试");
+        }
+    }
+
+    /**
      * 货主确认成交（摘单 -> 成交）
      * <p>
      * 按运单号加分布式锁，与「取消摘单」互斥串行，配合 Service 层状态 CAS 防并发覆盖。

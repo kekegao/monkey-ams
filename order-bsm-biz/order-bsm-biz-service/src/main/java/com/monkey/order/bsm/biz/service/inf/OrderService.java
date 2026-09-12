@@ -100,6 +100,18 @@ public interface OrderService extends IService<Order> {
     Result receiptConfirm(OrderOperateDTO orderOperateDTO);
 
     /**
+     * 货主结算申请：将订单由 回单确认(6) 流转为 结算申请(7)，发起托管运费结算。
+     * 安全要求：仅该运单货主本人可操作（登录态 UserContext 校验）；
+     * 防并发要求：外层分布式锁 + 状态 CAS，避免重复申请；
+     * 幂等要求：已处于结算申请及之后状态的运单重复请求直接返回成功；
+     * 资金说明：申请仅推进结算流程，托管运费仍冻结，实际运费支付在后续「结算(8)」阶段完成。
+     *
+     * @param orderOperateDTO 货主操作参数（orderId 运单号）
+     * @return 结算申请结果
+     */
+    Result settleApply(OrderOperateDTO orderOperateDTO);
+
+    /**
      * 货主确认成交：将订单由 摘单(2) 流转为 成交(3)，与承运方达成正式合作。
      * 安全要求：仅该运单货主本人可操作（登录态 UserContext 校验）；
      * 防并发要求：外层分布式锁 + 状态 CAS，避免成交与取消摘单等操作互相覆盖；

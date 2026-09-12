@@ -136,6 +136,12 @@
             <version>${monkey-common-auth.verison}</version>
         </dependency>
 
+        <dependency>
+            <groupId>com.monkey</groupId>
+            <artifactId>settlement-bsm-biz-api</artifactId>
+            <version>${settlement-bsm-biz-api.version}</version>
+        </dependency>
+
 
     </dependencies>
 

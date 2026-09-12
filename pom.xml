@@ -30,6 +30,7 @@
         <acq-bsm-biz-api.version>1.0.0-SNAPSHOT</acq-bsm-biz-api.version>
         <user-bsm-biz-api.version>1.0.0-SNAPSHOT</user-bsm-biz-api.version>
         <account-bsm-biz-api.version>1.0.0-SNAPSHOT</account-bsm-biz-api.version>
+        <settlement-bsm-biz-api.version>1.0.0-SNAPSHOT</settlement-bsm-biz-api.version>
         <redisson.version>3.52.0</redisson.version>
         <monkey-common-lock.version>1.0.0-SNAPSHOT</monkey-common-lock.version>
         <monkey-common-mq.version>1.0.0-SNAPSHOT</monkey-common-mq.version>
