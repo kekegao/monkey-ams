@@ -1,5 +1,6 @@
 package com.monkey.settlement.bsm.biz.service.impl;
 
+import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.monkey.ams.common.utils.StringGenerateUtil;
 import com.monkey.settlement.bsm.biz.constants.SettlementConstants;
 import com.monkey.settlement.bsm.biz.dto.SettlementApplyResultDto;
@@ -7,6 +8,7 @@ import com.monkey.settlement.bsm.biz.dto.SettlementCarrierDto;
 import com.monkey.settlement.bsm.biz.dto.SettlementShipperDto;
 import com.monkey.settlement.bsm.biz.entity.SettlementCarrier;
 import com.monkey.settlement.bsm.biz.entity.SettlementShipper;
+import com.monkey.settlement.bsm.biz.mapper.SettlementShipperMapper;
 import com.monkey.settlement.bsm.biz.request.SettlementApplyRequest;
 import com.monkey.settlement.bsm.biz.service.inf.SettlementCarrierService;
 import com.monkey.settlement.bsm.biz.service.inf.SettlementService;
@@ -57,6 +59,12 @@ public class SettlementServiceImpl implements SettlementService {
     private SettlementCarrierService settlementCarrierService;
 
     /**
+     * 货主清算单 Mapper：用于幂等命中时对缺失的托管冻结流水号做条件补齐
+     */
+    @Resource
+    private SettlementShipperMapper settlementShipperMapper;
+
+    /**
      * 承运方承担的服务费率（默认 5%），可由配置中心覆盖
      */
     @Value("${settlement.carrier.service-fee-rate:0.0500}")
@@ -78,8 +86,10 @@ public class SettlementServiceImpl implements SettlementService {
         SettlementShipper shipper = queryShipperEntity(orderId);
         SettlementCarrier carrier = queryCarrierEntity(orderId);
         if (shipper != null && carrier != null) {
-            log.info("清算单已存在，命中幂等: orderId={}, shipperNo={}, carrierNo={}",
-                    orderId, shipper.getSettlementNo(), carrier.getSettlementNo());
+            // 幂等命中：早期（或账户域降级时）生成的单据可能缺失托管冻结流水号，按账户侧最新结果补空自愈
+            shipper = supplementShipperFrozenInfo(shipper, request);
+            log.info("清算单已存在，命中幂等: orderId={}, shipperNo={}, carrierNo={}, frozenNo={}",
+                    orderId, shipper.getSettlementNo(), carrier.getSettlementNo(), shipper.getFrozenNo());
             return buildResult(shipper, carrier, true);
         }
 
@@ -135,6 +145,52 @@ public class SettlementServiceImpl implements SettlementService {
     }
 
     /**
+     * 幂等命中的自愈补齐：早期（或账户域降级时）生成的货主清算单可能缺失托管冻结流水号，
+     * 本次若已从账户侧取到流水号，则在「待结算 + 流水号仍为空」条件下做一次条件更新补齐。
+     * <p>
+     * 安全约束：
+     * 1) 仅 status=1（待结算，尚未发生任何资金动作）允许补齐，已结算/已作废单据不被改动；
+     * 2) 更新条件带主键与 status=1，且仅在内存判定「流水号仍为空」时才执行；外层按运单号分布式锁串行化，
+     *    极端并发同时补写时写入值同源（均取自账户侧同一冻结记录），不会产生数据漂移；
+     * 3) 仅补 frozen_no 与账户侧实际托管金额，不触碰应付/实付等结算口径与状态字段。
+     *
+     * @param shipper 已存在的货主清算单
+     * @param request 本次申请参数（已由协议层从账户侧补全 frozenNo / frozenAmount）
+     * @return 补齐后的货主清算单（无需补齐时原样返回）
+     */
+    private SettlementShipper supplementShipperFrozenInfo(SettlementShipper shipper, SettlementApplyRequest request) {
+        String frozenNo = request.getFrozenNo();
+        boolean shipperFrozenNoBlank = shipper.getFrozenNo() == null || shipper.getFrozenNo().trim().isEmpty();
+        boolean requestFrozenNoBlank = frozenNo == null || frozenNo.trim().isEmpty();
+        boolean pending = shipper.getStatus() != null
+                && shipper.getStatus() == SettlementConstants.STATUS_PENDING;
+        if (!shipperFrozenNoBlank || requestFrozenNoBlank || !pending) {
+            return shipper;
+        }
+        BigDecimal frozenAmount = request.getFrozenAmount() == null
+                ? shipper.getFrozenAmount() : scale(request.getFrozenAmount());
+        String operator = request.getOperator();
+        boolean hasOperator = operator != null && !operator.trim().isEmpty();
+        int rows = settlementShipperMapper.update(null, Wrappers.<SettlementShipper>lambdaUpdate()
+                .set(SettlementShipper::getFrozenNo, frozenNo)
+                .set(SettlementShipper::getFrozenAmount, frozenAmount)
+                .set(SettlementShipper::getUpdateTime, LocalDateTime.now())
+                .set(hasOperator, SettlementShipper::getUpdateName, operator)
+                .eq(SettlementShipper::getId, shipper.getId())
+                .eq(SettlementShipper::getStatus, SettlementConstants.STATUS_PENDING));
+        if (rows == 1) {
+            shipper.setFrozenNo(frozenNo);
+            shipper.setFrozenAmount(frozenAmount);
+            log.info("货主清算单托管冻结流水号已自愈补齐: orderId={}, settlementNo={}, frozenNo={}, frozenAmount={}",
+                    shipper.getOrderId(), shipper.getSettlementNo(), frozenNo, frozenAmount);
+        } else {
+            log.info("货主清算单托管冻结流水号无需补齐（已被并发请求补齐或状态已变化）: orderId={}, settlementNo={}",
+                    shipper.getOrderId(), shipper.getSettlementNo());
+        }
+        return shipper;
+    }
+
+    /**
      * 按运单号查询货主清算单（走 uk_order_id 唯一索引，最多 1 条）
      */
     private SettlementShipper queryShipperEntity(String orderId) {
@@ -172,6 +228,7 @@ public class SettlementServiceImpl implements SettlementService {
         shipper.setShipperMobile(request.getShipperMobile());
         shipper.setCarrierUserId(request.getCarrierUserId());
         shipper.setCarrierName(request.getCarrierName());
+        shipper.setCarrierMobile(request.getCarrierMobile());
         shipper.setTransportMoney(transportMoney);
         shipper.setServiceFeeRate(serviceFeeRate);
         shipper.setServiceFee(serviceFee);

@@ -1,5 +1,7 @@
 package com.monkey.settlement.bsm.biz.protocol;
 
+import com.monkey.account.bsm.biz.api.FrozenDetailProtocol;
+import com.monkey.account.bsm.biz.dto.FrozenDetailDto;
 import com.monkey.ams.common.response.Result;
 import com.monkey.common.lock.annotation.DistributedLock;
 import com.monkey.settlement.bsm.biz.api.SettlementProtocol;
@@ -11,7 +13,10 @@ import com.monkey.settlement.bsm.biz.request.SettlementApplyRequest;
 import com.monkey.settlement.bsm.biz.service.inf.SettlementService;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.dubbo.config.annotation.DubboReference;
 import org.apache.dubbo.config.annotation.DubboService;
+
+import java.math.BigDecimal;
 
 /**
  * 清算（结算单）服务协议实现
@@ -30,6 +35,12 @@ public class SettlementProtocolImpl implements SettlementProtocol {
     private SettlementService settlementService;
 
     /**
+     * 账户冻结明细服务（account-bsm-biz-service）：用于反查运单托管中的运费冻结流水号
+     */
+    @DubboReference
+    private FrozenDetailProtocol frozenDetailProtocol;
+
+    /**
      * 结算申请建单
      * <p>
      * 并发控制：按运单号加分布式锁，同一运单的重复/并发申请串行化；
@@ -46,6 +57,8 @@ public class SettlementProtocolImpl implements SettlementProtocol {
             log.warn("结算申请建单参数校验失败: {}", invalidMessage);
             return Result.fail(invalidMessage);
         }
+        // 事务外补全托管冻结信息（远程查询置于事务之外，避免长期占用数据库连接）
+        supplementFrozenInfo(request);
         try {
             SettlementApplyResultDto result = settlementService.applySettlement(request);
             log.info("结算申请建单完成: orderId={}, shipperNo={}, carrierNo={}, existed={}",
@@ -86,6 +99,51 @@ public class SettlementProtocolImpl implements SettlementProtocol {
         } catch (Exception e) {
             log.error("查询承运方清算单失败: orderId={}", orderId, e);
             return Result.fail("查询承运方清算单失败，请稍后重试");
+        }
+    }
+
+    /**
+     * 补全运单托管冻结信息（在数据库事务之外执行，避免事务内做远程调用）
+     * <p>
+     * 背景：冻结流水号由账户侧在「发布货源冻结运费」时生成，仅落库于 tf_b_frozen_detail
+     * （订单表未持久化），因此清算服务在此按「货主 + 运单号」反查账户侧处于托管中的运费冻结明细
+     * （biz_type=1 运费托管、status=1 冻结中），回填货主清算单的 frozen_no，
+     * 使结算(8) 阶段可按流水号精确扣划与追溯。
+     * <p>
+     * 容错（高可用）：账户服务超时/异常/查无记录时不阻断建单（降级为无流水号建单）并告警，
+     * 由结算(8) 阶段再次以账户侧数据为准做资金校验与扣划，避免账户域抖动导致结算流程整体卡死。
+     *
+     * @param request 结算申请参数（就地补全 frozenNo / frozenAmount）
+     */
+    private void supplementFrozenInfo(SettlementApplyRequest request) {
+        // 调用方已明确指定托管流水号（如平台指定、数据修复场景），不再反查
+        if (!isBlank(request.getFrozenNo())) {
+            return;
+        }
+        try {
+            Result<FrozenDetailDto> frozenResult = frozenDetailProtocol.selectTransportFrozenDetail(
+                    request.getShipperUserId(), request.getOrderId());
+            if (frozenResult == null || !frozenResult.isSuccess() || frozenResult.getData() == null) {
+                log.warn("未查询到运单处于托管中的运费冻结记录，清算单暂缺冻结流水号: orderId={}, message={}",
+                        request.getOrderId(), frozenResult == null ? null : frozenResult.getMessage());
+                return;
+            }
+            FrozenDetailDto frozenDetail = frozenResult.getData();
+            request.setFrozenNo(frozenDetail.getFrozenNo());
+            // 托管金额以账户侧实际冻结额为准（资金唯一真相源），与调用方传入值不一致时告警
+            BigDecimal accountFrozenAmount = frozenDetail.getAmount();
+            if (accountFrozenAmount != null && accountFrozenAmount.signum() > 0
+                    && (request.getFrozenAmount() == null
+                    || request.getFrozenAmount().compareTo(accountFrozenAmount) != 0)) {
+                log.warn("运单已托管金额与申请金额不一致，以账户实际冻结额为准: orderId={}, requestAmount={}, accountAmount={}",
+                        request.getOrderId(), request.getFrozenAmount(), accountFrozenAmount);
+                request.setFrozenAmount(accountFrozenAmount);
+            }
+            log.info("已补全运单托管冻结信息: orderId={}, frozenNo={}, frozenAmount={}",
+                    request.getOrderId(), frozenDetail.getFrozenNo(), frozenDetail.getAmount());
+        } catch (Exception e) {
+            // 降级：账户域异常不影响建单，结算阶段会再次校验资金
+            log.warn("反查运单托管冻结记录异常，降级生成清算单: orderId={}", request.getOrderId(), e);
         }
     }
 

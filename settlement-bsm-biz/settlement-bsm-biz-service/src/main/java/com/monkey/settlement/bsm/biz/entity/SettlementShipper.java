@@ -85,6 +85,12 @@ public class SettlementShipper implements Serializable {
     private String carrierName;
 
     /**
+     * 承运方手机号（冗余）
+     */
+    @TableField("carrier_mobile")
+    private String carrierMobile;
+
+    /**
      * 订单运费金额（tf_b_order.transport_money）
      */
     @TableField("transport_money")

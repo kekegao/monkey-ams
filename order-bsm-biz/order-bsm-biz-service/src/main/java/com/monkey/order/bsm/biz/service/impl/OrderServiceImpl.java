@@ -491,7 +491,8 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
             request.setCarrierName(order.getCarrierName());
             request.setCarrierMobile(order.getCarrierMobile());
             request.setTransportMoney(order.getTransportMoney());
-            // 发布货源时按运费金额冻结托管（未额外冻结货主服务费），故托管金额以运费为准
+            // 发布货源时按运费金额冻结托管（未额外冻结货主服务费），此处仅作兜底值：
+            // 冻结流水号订单表未落库，由清算服务反查账户侧托管明细补全，托管金额亦以账户侧实际冻结额为准
             request.setFrozenAmount(order.getTransportMoney());
             request.setOperator(session == null ? null : session.getUserId());
             request.setRemark("货主发起结算申请，系统自动生成货主/承运方清算单");
