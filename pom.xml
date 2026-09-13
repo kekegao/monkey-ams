@@ -53,6 +53,7 @@
         <module>monkey-common-auth</module>
         <module>settlement-bsm-biz</module>
         <module>invoice-bsm-biz</module>
+        <module>monkey-job-service</module>
     </modules>
 
     <dependencyManagement>
