@@ -35,14 +35,43 @@
 
         <dependency>
             <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-web</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-test</artifactId>
             <scope>test</scope>
+        </dependency>
+
+        <!-- Dubbo -->
+        <dependency>
+            <groupId>org.apache.dubbo</groupId>
+            <artifactId>dubbo-spring-boot-starter</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.apache.dubbo</groupId>
+            <artifactId>dubbo-zookeeper-spring-boot-starter</artifactId>
+            <version>3.3.0</version>
+        </dependency>
+
+        <dependency>
+            <groupId>com.ctrip.framework.apollo</groupId>
+            <artifactId>apollo-client</artifactId>
+            <version>${apollo-client.version}</version>
         </dependency>
 
         <dependency>
             <groupId>com.monkey</groupId>
             <artifactId>ams-common</artifactId>
             <version>${ams-common.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>com.monkey</groupId>
+            <artifactId>order-bsm-biz-api</artifactId>
+            <version>${order-bsm-biz-api.version}</version>
         </dependency>
     </dependencies>
 
