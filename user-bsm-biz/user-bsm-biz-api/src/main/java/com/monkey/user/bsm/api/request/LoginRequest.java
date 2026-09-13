@@ -1,4 +1,4 @@
-package com.monkey.user.bsm.api.dto;
+package com.monkey.user.bsm.api.request;
 
 import lombok.Data;
 

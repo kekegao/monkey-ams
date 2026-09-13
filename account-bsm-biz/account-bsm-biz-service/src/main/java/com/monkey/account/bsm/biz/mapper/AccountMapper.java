@@ -7,6 +7,8 @@ import com.monkey.ams.common.response.Result;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 
+import java.math.BigDecimal;
+
 /**
  * <p>
  * 账户表 Mapper 接口
@@ -25,5 +27,14 @@ public interface AccountMapper extends BaseMapper<Account> {
      * @return
      */
     AccountDto selectAccount(@Param("userId") String userId);
+
+    /**
+     * 充值：余额、可用金额原子累加（SQL 层加法，避免并发覆盖）
+     *
+     * @param userId 用户ID
+     * @param amount 充值金额
+     * @return 影响行数
+     */
+    int rechargeBalance(@Param("userId") String userId, @Param("amount") BigDecimal amount);
 
 }

@@ -30,11 +30,14 @@
         <acq-bsm-biz-api.version>1.0.0-SNAPSHOT</acq-bsm-biz-api.version>
         <user-bsm-biz-api.version>1.0.0-SNAPSHOT</user-bsm-biz-api.version>
         <account-bsm-biz-api.version>1.0.0-SNAPSHOT</account-bsm-biz-api.version>
+        <settlement-bsm-biz-api.version>1.0.0-SNAPSHOT</settlement-bsm-biz-api.version>
         <redisson.version>3.52.0</redisson.version>
         <monkey-common-lock.version>1.0.0-SNAPSHOT</monkey-common-lock.version>
         <monkey-common-mq.version>1.0.0-SNAPSHOT</monkey-common-mq.version>
         <monkey-common-auth.verison>1.0.0-SNAPSHOT</monkey-common-auth.verison>
         <commons-collections4.version>4.5.0</commons-collections4.version>
+        <fastjson.version>2.0.57</fastjson.version>
+        <apollo-client.version>2.5.0</apollo-client.version>
     </properties>
 
     <modules>
@@ -50,7 +53,7 @@
         <module>monkey-common-auth</module>
         <module>settlement-bsm-biz</module>
         <module>invoice-bsm-biz</module>
-        <module>invoice-bsm-biz/invoice-bsm-biz-api</module>
+        <module>monkey-job-service</module>
     </modules>
 
     <dependencyManagement>

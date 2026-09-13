@@ -35,8 +35,106 @@
 
         <dependency>
             <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-web</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-actuator</artifactId>
+        </dependency>
+
+
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-test</artifactId>
             <scope>test</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>com.mysql</groupId>
+            <artifactId>mysql-connector-j</artifactId>
+            <scope>runtime</scope>
+        </dependency>
+
+        <!-- MyBatis-Plus -->
+        <dependency>
+            <groupId>com.baomidou</groupId>
+            <artifactId>mybatis-plus-spring-boot3-starter</artifactId>
+            <version>3.5.17</version>
+        </dependency>
+
+
+        <!-- <dependency>
+             <groupId>org.springframework.boot</groupId>
+             <artifactId>spring-boot-autoconfigure</artifactId>
+         </dependency>-->
+
+        <dependency>
+            <groupId>org.apache.dubbo</groupId>
+            <artifactId>dubbo-spring-boot-starter</artifactId>
+        </dependency>
+
+        <!--<dependency>
+            <groupId>org.apache.dubbo</groupId>
+            <artifactId>dubbo-nacos-spring-boot-starter</artifactId>
+        </dependency>-->
+
+        <dependency>
+            <groupId>org.apache.dubbo</groupId>
+            <artifactId>dubbo-zookeeper-spring-boot-starter</artifactId>
+            <version>3.3.0</version>
+        </dependency>
+
+        <!--<dependency>
+            <groupId>org.apache.dubbo</groupId>
+            <artifactId>dubbo-registry-zookeeper</artifactId>
+            <version>${dubbo.version}</version>
+        </dependency>-->
+
+        <dependency>
+            <groupId>com.ctrip.framework.apollo</groupId>
+            <artifactId>apollo-client</artifactId>
+            <version>${apollo-client.version}</version>
+        </dependency>
+
+
+        <dependency>
+            <groupId>com.monkey</groupId>
+            <artifactId>monkey-common-lock</artifactId>
+            <version>${monkey-common-lock.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>org.apache.commons</groupId>
+            <artifactId>commons-collections4</artifactId>
+            <version>${commons-collections4.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>com.monkey</groupId>
+            <artifactId>account-bsm-biz-api</artifactId>
+            <version>${account-bsm-biz-api.version}</version>
+        </dependency>
+
+
+        <dependency>
+            <groupId>com.monkey</groupId>
+            <artifactId>monkey-common-mq</artifactId>
+            <version>${monkey-common-mq.version}</version>
+        </dependency>
+
+
+        <dependency>
+            <groupId>com.monkey</groupId>
+            <artifactId>monkey-common-auth</artifactId>
+            <version>${monkey-common-auth.verison}</version>
+        </dependency>
+
+
+        <dependency>
+            <groupId>com.monkey</groupId>
+            <artifactId>settlement-bsm-biz-api</artifactId>
+            <version>${settlement-bsm-biz-api.version}</version>
         </dependency>
     </dependencies>
 

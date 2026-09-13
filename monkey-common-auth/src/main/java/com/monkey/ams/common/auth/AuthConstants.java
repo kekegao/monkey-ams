@@ -21,6 +21,11 @@ public final class AuthConstants {
     public static final String LOGIN_TOKEN_PREFIX = "monkey:login:token:";
 
     /**
+     * 会员信息缓存key前缀  monkey:login:user:{userId}:{deviceId}
+     */
+    public static final String LOGIN_USER_SUFFIX = "monkey:user:info:";
+
+    /**
      * User Context Request Attribute
      */
     public static final String USER_CONTEXT_ATTRIBUTE = "MONKEY_USER_CONTEXT";
@@ -39,6 +44,11 @@ public final class AuthConstants {
      * Dubbo RPC 用户mobile
      */
     public static final String RPC_USER_MOBILE = "monkey-user-mobile";
+
+    /**
+     * Dubbo RPC 用户realName
+     */
+    public static final String RPC_REAL_NAME = "monkey-user-realName";
 
     /**
      * Dubbo RPC Session ID

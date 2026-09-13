@@ -26,6 +26,15 @@ public interface AccountService extends IService<Account> {
      */
     Result<AccountDto> selectAccount(String userId);
 
+    /**
+     * 账户充值：余额、可用金额原子累加
+     *
+     * @param userId 用户ID
+     * @param amount 充值金额
+     * @return
+     */
+    Result increaseBalance(String userId, BigDecimal amount);
+
 
     //Result frozenTransportMoneyAccount(String userId, BigDecimal amount);
 

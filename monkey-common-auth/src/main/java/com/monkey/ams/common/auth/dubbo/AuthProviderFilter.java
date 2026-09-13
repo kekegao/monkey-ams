@@ -63,6 +63,13 @@ public class AuthProviderFilter implements Filter {
                                 )
                 );
 
+                session.setRealName(
+                        RpcContext.getServerAttachment()
+                                .getAttachment(
+                                        AuthConstants.RPC_REAL_NAME
+                                )
+                );
+
                 UserContext.set(session);
             }
 

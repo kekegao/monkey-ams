@@ -1,19 +1,42 @@
 package com.monkey.order.bsm.biz.service.impl;
 
 
+import com.alibaba.fastjson.JSONObject;
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
+import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.spring.service.impl.ServiceImpl;
+import com.monkey.account.bsm.biz.api.AccountProtocol;
+import com.monkey.account.bsm.biz.request.FrozenMoneyAccountRequest;
 import com.monkey.ams.common.auth.context.UserContext;
+import com.monkey.ams.common.auth.model.LoginSession;
+import com.monkey.ams.common.constants.BizTypeEnum;
+import com.monkey.ams.common.constants.OrderStatusEnum;
 import com.monkey.ams.common.response.Result;
 import com.monkey.ams.common.utils.StringGenerateUtil;
+import com.monkey.common.mq.core.RabbitMqProducer;
+import com.monkey.order.bsm.biz.dto.AcceptOrderDTO;
+import com.monkey.order.bsm.biz.dto.OrderDto;
+import com.monkey.order.bsm.biz.dto.OrderOperateDTO;
 import com.monkey.order.bsm.biz.dto.OrderPublishDTO;
+import com.monkey.order.bsm.biz.dto.OrderQueryDTO;
 import com.monkey.order.bsm.biz.entity.Order;
 import com.monkey.order.bsm.biz.mapper.OrderMapper;
 import com.monkey.order.bsm.biz.service.inf.OrderService;
+import com.monkey.settlement.bsm.biz.api.SettlementProtocol;
+import com.monkey.settlement.bsm.biz.dto.SettlementApplyResultDto;
+import com.monkey.settlement.bsm.biz.request.SettlementApplyRequest;
+import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.dubbo.config.annotation.DubboReference;
 import org.springframework.beans.BeanUtils;
 import org.springframework.stereotype.Service;
 
+import java.math.BigDecimal;
 import java.util.Date;
+import java.util.List;
+
+import static com.monkey.ams.common.constants.AmsRabbitConstants.ROUTING_KEY;
+import static com.monkey.ams.common.constants.AmsRabbitConstants.SHIP_MONEY_ROUTING_KEY;
 
 /**
  * <p>
@@ -26,6 +49,621 @@ import java.util.Date;
 @Slf4j
 @Service
 public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements OrderService {
+
+    @DubboReference
+    private AccountProtocol accountProtocol;
+
+    /**
+     * 清算服务（settlement-bsm-biz-service）：结算申请时生成货主/承运方清算单
+     */
+    @DubboReference
+    private SettlementProtocol settlementProtocol;
+
+    @Resource
+    private RabbitMqProducer rabbitMqProducer;
+
+    @Override
+    public List<OrderDto> queryPublishOrderList(OrderQueryDTO queryDTO) {
+        if (queryDTO == null || queryDTO.getShipperUserId() == null || queryDTO.getShipperUserId().trim().isEmpty()) {
+            log.warn("查询已发布订单列表缺少货主用户ID");
+            return java.util.Collections.emptyList();
+        }
+        return baseMapper.selectPublishOrderList(queryDTO);
+    }
+
+    @Override
+    public List<OrderDto> querySourceOrderList(OrderQueryDTO queryDTO) {
+        if (queryDTO == null) {
+            queryDTO = new OrderQueryDTO();
+        }
+        return baseMapper.selectSourceOrderList(queryDTO);
+    }
+
+    @Override
+    public List<OrderDto> queryCarrierOrderList(OrderQueryDTO queryDTO) {
+        if (queryDTO == null || queryDTO.getCarrierUserId() == null || queryDTO.getCarrierUserId().trim().isEmpty()) {
+            log.warn("查询承运方已摘运单列表缺少承运方用户ID");
+            return java.util.Collections.emptyList();
+        }
+        return baseMapper.selectCarrierOrderList(queryDTO);
+    }
+
+    /**
+     * 承运端摘单（抢单）
+     * <p>
+     * 安全与并发策略：
+     * 1) 承运人身份一律取自登录态 UserContext，杜绝请求参数伪造；
+     * 2) 禁止货主摘取自己发布的货源（防自摘套利）；
+     * 3) 状态 CAS（where id=? and status=1）单条 UPDATE 原子流转，行锁层面天然防并发；
+     *    外层另有 OrderProtocol 的分布式锁做前置串行，双保险；
+     * 4) 同一承运人重复摘单/重试时幂等成功，避免重复处理；
+     * 5) 更新走主键索引，无 SELECT ... FOR UPDATE 长事务，抢单场景性能高。
+     */
+    @Override
+    public Result acceptOrder(AcceptOrderDTO acceptOrderDTO) {
+        // 1. 参数校验
+        if (acceptOrderDTO == null || acceptOrderDTO.getOrderId() == null || acceptOrderDTO.getOrderId().trim().isEmpty()) {
+            return Result.fail("请选择要摘单的货源");
+        }
+        // 2. 登录态校验（承运人身份以登录用户为准）
+        LoginSession session = UserContext.get();
+        if (session == null || session.getUserId() == null || session.getUserId().trim().isEmpty()) {
+            log.warn("摘单失败：未获取到登录用户信息");
+            return Result.fail("登录状态已失效，请重新登录");
+        }
+        String carrierUserId = session.getUserId();
+        String orderId = acceptOrderDTO.getOrderId().trim();
+
+        // 3. 定位订单（先取主键，后续 CAS 走主键索引）
+        Order order = baseMapper.selectOne(Wrappers.<Order>lambdaQuery()
+                .eq(Order::getOrderId, orderId)
+                .eq(Order::getDeleteFlag, (byte) 0)
+                .last("limit 1"));
+        if (order == null) {
+            return Result.fail("货源不存在或已下架");
+        }
+
+        // 4. 安全校验：禁止摘取自己发布的货源
+        if (carrierUserId.equals(order.getShipperUserId())) {
+            log.warn("摘单失败：禁止摘取自己发布的货源, orderId={}", orderId);
+            return Result.fail("不能摘取自己发布的货源");
+        }
+
+        // 5. 幂等：已是本人摘单的单，重复请求直接返回成功（防前端重试/双击误报）
+        if (isAcceptedBy(order, carrierUserId)) {
+            log.info("重复摘单请求，幂等返回成功: orderId={}, carrierUserId={}", orderId, carrierUserId);
+            return Result.success();
+        }
+        // 6. 非发布态且非本人已摘，给出明确失败原因
+        if (order.getStatus() == null || order.getStatus() != OrderStatusEnum.PUBLISH.getValue()) {
+            return Result.fail(order.getStatus() != null && order.getStatus() == OrderStatusEnum.ACCEPT.getValue()
+                    ? "该货源已被其他承运方摘单" : "货源当前状态不可摘单");
+        }
+
+        // 7. CAS 原子抢占：仅当仍为「发布(1)」才可摘，单条 UPDATE 行锁保证并发下只成功一人
+        LambdaUpdateWrapper<Order> wrapper = Wrappers.<Order>lambdaUpdate()
+                .set(Order::getStatus, OrderStatusEnum.ACCEPT.getValue())
+                .set(Order::getStatusDesc, OrderStatusEnum.ACCEPT.getName())
+                .set(Order::getCarrierUserId, carrierUserId)
+                .set(Order::getCarrierUserName, session.getUserName())
+                .set(Order::getCarrierMobile, session.getMobile())
+                .set(Order::getCarrierName, session.getRealName())
+                .set(Order::getUpdateTime, new Date())
+                .eq(Order::getId, order.getId())
+                .eq(Order::getStatus, OrderStatusEnum.PUBLISH.getValue());
+        int rows = baseMapper.update(null, wrapper);
+        if (rows == 1) {
+            log.info("摘单成功: orderId={}, carrierUserId={}", orderId, carrierUserId);
+            return Result.success();
+        }
+
+        // 8. CAS 竞争失败：补偿确认是否本人并发重试已抢先成功
+        Order latest = baseMapper.selectById(order.getId());
+        if (isAcceptedBy(latest, carrierUserId)) {
+            log.info("摘单并发重试命中本人，幂等返回成功: orderId={}", orderId);
+            return Result.success();
+        }
+        return Result.fail("手慢了，货源刚被其他承运方摘走");
+    }
+
+    /**
+     * 判断订单是否已被指定承运人摘单
+     */
+    private boolean isAcceptedBy(Order order, String carrierUserId) {
+        return order != null
+                && order.getStatus() != null && order.getStatus() == OrderStatusEnum.ACCEPT.getValue()
+                && carrierUserId.equals(order.getCarrierUserId());
+    }
+
+    /**
+     * 承运方确认发货（状态机：成交(3) -> 发货(4)）
+     * <p>
+     * 业务与安全规则：
+     * 1) 仅该运单承运方本人可操作，身份取自登录态 UserContext，不信任请求参数；
+     * 2) 仅「成交(3)」状态可发货，尚未成交的运单不允许启动运输；
+     * 3) CAS(where id=? and status=3) 单条 UPDATE 原子流转，外层另有分布式锁，防并发重复发货；
+     * 4) 幂等：已发货(4) 的运单重复请求直接返回成功，防止前端双击/重试误报。
+     */
+    @Override
+    public Result shipOrder(OrderOperateDTO orderOperateDTO) {
+        String orderId = normalizeOperateOrderId(orderOperateDTO);
+        if (orderId == null) {
+            return Result.fail("请选择要发货的运单");
+        }
+        LoginSession session = UserContext.get();
+        if (session == null || session.getUserId() == null || session.getUserId().trim().isEmpty()) {
+            return Result.fail("登录状态已失效，请重新登录");
+        }
+        Order order = fetchOrder(orderId);
+        if (order == null) {
+            return Result.fail("运单不存在或已删除");
+        }
+        // 安全校验：仅承运方本人
+        if (order.getCarrierUserId() == null || !session.getUserId().equals(order.getCarrierUserId())) {
+            log.warn("发货失败：非承运方本人操作, orderId={}, operator={}", orderId, session.getUserId());
+            return Result.fail("只能操作自己承运的运单");
+        }
+        // 幂等：已发货
+        if (order.getStatus() != null && order.getStatus() == OrderStatusEnum.SHIP.getValue()) {
+            log.info("重复发货请求，幂等返回成功: orderId={}", orderId);
+            return Result.success();
+        }
+        if (order.getStatus() == null || order.getStatus() != OrderStatusEnum.DEAL.getValue()) {
+            return Result.fail(order.getStatus() != null && order.getStatus() == OrderStatusEnum.ACCEPT.getValue()
+                    ? "该运单尚未成交，请等待货主确认成交后再发货"
+                    : "该运单已进入运输/结算流程，无法重复发货");
+        }
+
+        //冻结承运方保证金
+        FrozenMoneyAccountRequest request = new FrozenMoneyAccountRequest();
+        request.setUserId(session.getUserId());
+        request.setAmount(new BigDecimal("500.00"));
+        request.setBizType(BizTypeEnum.SHIP_MONEY.getValue());
+        request.setFrozenNo(StringGenerateUtil.generateOrderNo("DJ"));
+        request.setOrderNo(orderId);
+        Result result = accountProtocol.frozenCarrierMoneyAccount(request);
+        if(!result.isSuccess()) {
+            log.warn("冻结承运方发货保证金失败: userId={}, amount={}, reason={}", request.getUserId(), request.getAmount(), result.getMessage());
+            return result;
+        }
+
+        // CAS 原子流转：仅当仍处于「成交(3)」才可发货
+        int rows = baseMapper.update(null, Wrappers.<Order>lambdaUpdate()
+                .set(Order::getStatus, OrderStatusEnum.SHIP.getValue())
+                .set(Order::getStatusDesc, OrderStatusEnum.SHIP.getName())
+                .set(Order::getUpdateTime, new Date())
+                .eq(Order::getId, order.getId())
+                .eq(Order::getStatus, OrderStatusEnum.DEAL.getValue()));
+        if (rows == 1) {
+            log.info("确认发货成功: orderId={}, carrierUserId={}", orderId, session.getUserId());
+            return Result.success();
+        }
+        // CAS 竞争失败：补偿确认是否已发货成功（并发重放场景）
+        Order latest = baseMapper.selectById(order.getId());
+        if (latest != null && latest.getStatus() != null && latest.getStatus() == OrderStatusEnum.SHIP.getValue()) {
+            log.info("发货并发重试命中已发货，幂等返回成功: orderId={}", orderId);
+            return Result.success();
+        }
+
+        //如果确认发货失败，发送mq，回滚释放
+        JSONObject data = new JSONObject();
+        data.put("userId", request.getUserId());
+        data.put("amount", request.getAmount());
+        data.put("frozenNo", request.getFrozenNo());
+        rabbitMqProducer.send(SHIP_MONEY_ROUTING_KEY, data);
+        return Result.fail("操作失败，运单状态已变化，请刷新后重试");
+    }
+
+    /**
+     * 确认收货（状态机：发货(4) -> 确认收货(5)）
+     * <p>
+     * 业务与安全规则：
+     * 1) 仅该运单承运方本人可操作，身份取自登录态 UserContext，不信任请求参数；
+     * 2) 仅「发货(4)」状态可确认收货，尚未发货的运单不允许确认收货；
+     * 3) CAS(where id=? and status=4) 单条 UPDATE 原子流转，外层另有分布式锁，防并发重复确认；
+     * 4) 幂等：已确认收货(5) 的运单重复请求直接返回成功，防止前端双击/重试误报。
+     */
+    @Override
+    public Result confirmReceipt(OrderOperateDTO orderOperateDTO) {
+        String orderId = normalizeOperateOrderId(orderOperateDTO);
+        if (orderId == null) {
+            return Result.fail("请选择要确认收货的运单");
+        }
+        LoginSession session = UserContext.get();
+        if (session == null || session.getUserId() == null || session.getUserId().trim().isEmpty()) {
+            return Result.fail("登录状态已失效，请重新登录");
+        }
+        Order order = fetchOrder(orderId);
+        if (order == null) {
+            return Result.fail("运单不存在或已删除");
+        }
+        // 安全校验：仅承运方本人
+        if (order.getCarrierUserId() == null || !session.getUserId().equals(order.getCarrierUserId())) {
+            log.warn("确认收货失败：非承运方本人操作, orderId={}, operator={}", orderId, session.getUserId());
+            return Result.fail("只能操作自己承运的运单");
+        }
+        // 幂等：已确认收货
+        if (order.getStatus() != null && order.getStatus() == OrderStatusEnum.CONFIRM_RECEIPT.getValue()) {
+            log.info("重复确认收货请求，幂等返回成功: orderId={}", orderId);
+            return Result.success();
+        }
+        if (order.getStatus() == null || order.getStatus() != OrderStatusEnum.SHIP.getValue()) {
+            return Result.fail(order.getStatus() != null && order.getStatus() == OrderStatusEnum.DEAL.getValue()
+                    ? "该运单尚未发货，请先确认发货"
+                    : "该运单当前状态不可确认收货");
+        }
+
+        // CAS 原子流转：仅当仍处于「发货(4)」才可确认收货
+        int rows = baseMapper.update(null, Wrappers.<Order>lambdaUpdate()
+                .set(Order::getStatus, OrderStatusEnum.CONFIRM_RECEIPT.getValue())
+                .set(Order::getStatusDesc, OrderStatusEnum.CONFIRM_RECEIPT.getName())
+                .set(Order::getUpdateTime, new Date())
+                .eq(Order::getId, order.getId())
+                .eq(Order::getStatus, OrderStatusEnum.SHIP.getValue()));
+        if (rows == 1) {
+            log.info("确认收货成功: orderId={}, carrierUserId={}", orderId, session.getUserId());
+            return Result.success();
+        }
+        // CAS 竞争失败：补偿确认是否已确认收货成功（并发重放场景）
+        Order latest = baseMapper.selectById(order.getId());
+        if (latest != null && latest.getStatus() != null && latest.getStatus() == OrderStatusEnum.CONFIRM_RECEIPT.getValue()) {
+            log.info("确认收货并发重试命中已收货，幂等返回成功: orderId={}", orderId);
+            return Result.success();
+        }
+        return Result.fail("操作失败，运单状态已变化，请刷新后重试");
+    }
+
+    /**
+     * 回单确认（状态机：确认收货(5) -> 回单确认(6)）
+     * <p>
+     * 业务与安全规则：
+     * 1) 仅该运单货主本人可操作，身份取自登录态 UserContext，不信任请求参数；
+     * 2) 仅「确认收货(5)」状态可回单确认，未确认收货的运单不允许回单确认；
+     * 3) CAS(where id=? and status=5) 单条 UPDATE 原子流转，外层另有分布式锁，防并发重复确认；
+     * 4) 幂等：已回单确认(6) 的运单重复请求直接返回成功，防止前端双击/重试误报；
+     * 5) 资金动作：回单确认成功后异步释放承运方发货保证金（发 MQ，账户模块消费解冻，最终一致）。
+     */
+    @Override
+    public Result receiptConfirm(OrderOperateDTO orderOperateDTO) {
+        String orderId = normalizeOperateOrderId(orderOperateDTO);
+        if (orderId == null) {
+            return Result.fail("请选择要回单确认的运单");
+        }
+        LoginSession session = UserContext.get();
+        if (session == null || session.getUserId() == null || session.getUserId().trim().isEmpty()) {
+            return Result.fail("登录状态已失效，请重新登录");
+        }
+        Order order = fetchOrder(orderId);
+        if (order == null) {
+            return Result.fail("运单不存在或已删除");
+        }
+        // 安全校验：仅货主本人
+        if (!session.getUserId().equals(order.getShipperUserId())) {
+            log.warn("回单确认失败：非货主本人操作, orderId={}, operator={}", orderId, session.getUserId());
+            return Result.fail("只能操作自己发布的运单");
+        }
+        // 幂等：已回单确认
+        if (order.getStatus() != null && order.getStatus() == OrderStatusEnum.RECEIPT_CONFIRM.getValue()) {
+            log.info("重复回单确认请求，幂等返回成功: orderId={}", orderId);
+            return Result.success();
+        }
+        if (order.getStatus() == null || order.getStatus() != OrderStatusEnum.CONFIRM_RECEIPT.getValue()) {
+            return Result.fail(order.getStatus() != null && order.getStatus() == OrderStatusEnum.SHIP.getValue()
+                    ? "该运单尚未确认收货，请等待承运方确认收货后再回单确认"
+                    : "该运单当前状态不可回单确认");
+        }
+        if (order.getCarrierUserId() == null || order.getCarrierUserId().trim().isEmpty()) {
+            return Result.fail("该运单缺少承运方信息，无法回单确认");
+        }
+
+        // CAS 原子流转：仅当仍处于「确认收货(5)」才可回单确认
+        int rows = baseMapper.update(null, Wrappers.<Order>lambdaUpdate()
+                .set(Order::getStatus, OrderStatusEnum.RECEIPT_CONFIRM.getValue())
+                .set(Order::getStatusDesc, OrderStatusEnum.RECEIPT_CONFIRM.getName())
+                .set(Order::getUpdateTime, new Date())
+                .eq(Order::getId, order.getId())
+                .eq(Order::getStatus, OrderStatusEnum.CONFIRM_RECEIPT.getValue()));
+        if (rows == 1) {
+            log.info("回单确认成功: orderId={}, shipperUserId={}", orderId, session.getUserId());
+            // 回单确认成功 -> 异步释放承运方发货保证金
+            releaseCarrierShipMoney(order);
+            return Result.success();
+        }
+        // CAS 竞争失败：补偿确认是否已回单确认成功（并发重放场景，此处不再重复发释放消息）
+        Order latest = baseMapper.selectById(order.getId());
+        if (latest != null && latest.getStatus() != null && latest.getStatus() == OrderStatusEnum.RECEIPT_CONFIRM.getValue()) {
+            log.info("回单确认并发重试命中已确认，幂等返回成功: orderId={}", orderId);
+            return Result.success();
+        }
+        return Result.fail("操作失败，运单状态已变化，请刷新后重试");
+    }
+
+    /**
+     * 货主结算申请（状态机：回单确认(6) -> 结算申请(7)）
+     * <p>
+     * 业务与安全规则：
+     * 1) 仅该运单货主本人可操作，身份取自登录态 UserContext，不信任请求参数；
+     * 2) 仅「回单确认(6)」状态可申请结算，保证结算前置履约动作已完成；
+     * 3) 先向清算服务申请生成「货主清算单 + 承运方清算单」（清算服务内同一事务落库、按运单号幂等），
+     *    再 CAS(where id=? and status=6) 原子流转，避免出现「订单已申请但清算单缺失」的脏状态：
+     *    清算服务不可用/超时则订单保持回单确认(6)，用户重试即可（清算服务幂等，不会重复建单）；
+     * 4) 幂等：已处于结算申请(7)及之后状态的运单，重复请求仍会调用清算服务做一次幂等补齐（自愈），
+     *    之后直接返回成功，防止前端双击/重试误报；
+     * 5) 资金动作：申请仅推进结算流程，托管中的运费保持冻结，
+     *    实际运费扣划/入账承运方由后续「结算(8)」阶段（settlement 模块）统一处理。
+     */
+    @Override
+    public Result settleApply(OrderOperateDTO orderOperateDTO) {
+        String orderId = normalizeOperateOrderId(orderOperateDTO);
+        if (orderId == null) {
+            return Result.fail("请选择要申请结算的运单");
+        }
+        LoginSession session = UserContext.get();
+        if (session == null || session.getUserId() == null || session.getUserId().trim().isEmpty()) {
+            return Result.fail("登录状态已失效，请重新登录");
+        }
+        Order order = fetchOrder(orderId);
+        if (order == null) {
+            return Result.fail("运单不存在或已删除");
+        }
+        // 安全校验：仅货主本人
+        if (!session.getUserId().equals(order.getShipperUserId())) {
+            log.warn("结算申请失败：非货主本人操作, orderId={}, operator={}", orderId, session.getUserId());
+            return Result.fail("只能操作自己发布的运单");
+        }
+        // 幂等标记：已结算申请或已进入后续结算流程
+        boolean settlementApplied = order.getStatus() != null
+                && order.getStatus() >= OrderStatusEnum.SETTLEMENT_APPLY.getValue();
+        if (!settlementApplied) {
+            if (order.getStatus() == null || order.getStatus() != OrderStatusEnum.RECEIPT_CONFIRM.getValue()) {
+                return Result.fail("该运单尚未回单确认，请等待回单确认后再申请结算");
+            }
+            if (order.getCarrierUserId() == null || order.getCarrierUserId().trim().isEmpty()) {
+                return Result.fail("该运单缺少承运方信息，无法申请结算");
+            }
+            if (order.getTransportMoney() == null || order.getTransportMoney().signum() <= 0) {
+                log.warn("结算申请失败：运单运费异常, orderId={}, transportMoney={}", orderId, order.getTransportMoney());
+                return Result.fail("该运单运费信息异常，无法申请结算");
+            }
+        }
+
+        // 生成（或幂等补齐）货主清算单与承运方清算单：失败则不推进订单状态，不留脏数据
+        Result<SettlementApplyResultDto> billResult = generateSettlementBills(order, session);
+        if (billResult == null || !billResult.isSuccess()) {
+            String message = (billResult == null || billResult.getMessage() == null)
+                    ? "结算单生成失败，请稍后重试" : billResult.getMessage();
+            log.warn("结算申请失败：清算单生成异常, orderId={}, message={}", orderId, message);
+            return Result.fail(message);
+        }
+        if (settlementApplied) {
+            log.info("重复结算申请请求，清算单已就绪，幂等返回成功: orderId={}, status={}", orderId, order.getStatus());
+            return Result.success();
+        }
+
+        // CAS 原子流转：仅当仍处于「回单确认(6)」才可申请结算
+        int rows = baseMapper.update(null, Wrappers.<Order>lambdaUpdate()
+                .set(Order::getStatus, OrderStatusEnum.SETTLEMENT_APPLY.getValue())
+                .set(Order::getStatusDesc, OrderStatusEnum.SETTLEMENT_APPLY.getName())
+                .set(Order::getUpdateTime, new Date())
+                .eq(Order::getId, order.getId())
+                .eq(Order::getStatus, OrderStatusEnum.RECEIPT_CONFIRM.getValue()));
+        if (rows == 1) {
+            SettlementApplyResultDto bills = billResult.getData();
+            log.info("结算申请成功: orderId={}, shipperUserId={}, shipperSettlementNo={}, carrierSettlementNo={}",
+                    orderId, session.getUserId(),
+                    bills == null ? null : bills.getShipperSettlementNo(),
+                    bills == null ? null : bills.getCarrierSettlementNo());
+            return Result.success();
+        }
+        // CAS 竞争失败：补偿确认是否已申请成功（并发重放场景，清算单已幂等生成，不会重复）
+        Order latest = baseMapper.selectById(order.getId());
+        if (latest != null && latest.getStatus() != null && latest.getStatus() >= OrderStatusEnum.SETTLEMENT_APPLY.getValue()) {
+            log.info("结算申请并发重试命中已申请，幂等返回成功: orderId={}", orderId);
+            return Result.success();
+        }
+        return Result.fail("操作失败，运单状态已变化，请刷新后重试");
+    }
+
+    /**
+     * 调用清算服务生成（或幂等补齐）该运单的货主清算单与承运方清算单。
+     * <p>
+     * 幂等与容错说明：
+     * 1) 清算服务以运单号为幂等键（表上 uk_order_id 唯一索引兜底），重复调用只返回既有单据，不会重复建单；
+     * 2) 调用异常（Dubbo 超时/熔断/网络抖动）统一转为失败结果，订单状态保持不变，
+     *    由用户重试或后续补偿触发，最终一致，不会产生"已申请但无清算单"的数据；
+     * 3) 金额（应付总额、服务费、实收金额）一律由清算服务端按运单运费与服务费率计算，
+     *    订单侧只透传运单快照，不做任何金额加工，防止金额被篡改。
+     *
+     * @param order   待申请结算的运单
+     * @param session 当前登录货主
+     * @return 清算单信息（失败时 message 为可直接展示的提示）
+     */
+    private Result<SettlementApplyResultDto> generateSettlementBills(Order order, LoginSession session) {
+        try {
+            SettlementApplyRequest request = new SettlementApplyRequest();
+            request.setOrderId(order.getOrderId());
+            request.setShipperUserId(order.getShipperUserId());
+            request.setShipperUserName(order.getShipperUserName());
+            request.setShipperName(order.getShipperName());
+            request.setShipperMobile(order.getShipperMobile());
+            request.setCarrierUserId(order.getCarrierUserId());
+            request.setCarrierUserName(order.getCarrierUserName());
+            request.setCarrierName(order.getCarrierName());
+            request.setCarrierMobile(order.getCarrierMobile());
+            request.setTransportMoney(order.getTransportMoney());
+            // 发布货源时按运费金额冻结托管（未额外冻结货主服务费），此处仅作兜底值：
+            // 冻结流水号订单表未落库，由清算服务反查账户侧托管明细补全，托管金额亦以账户侧实际冻结额为准
+            request.setFrozenAmount(order.getTransportMoney());
+            request.setOperator(session == null ? null : session.getUserId());
+            request.setRemark("货主发起结算申请，系统自动生成货主/承运方清算单");
+            return settlementProtocol.applySettlement(request);
+        } catch (Exception e) {
+            log.error("调用清算服务生成清算单异常: orderId={}", order.getOrderId(), e);
+            return Result.fail("结算单生成失败，请稍后重试");
+        }
+    }
+
+    /**
+     * 回单确认成功后异步释放承运方发货保证金。
+     * <p>
+     * 通过 MQ 解耦账户模块：账户侧按「userId + orderNo(运单号) + 业务类型=发货保证金 + 冻结中」定位冻结明细解冻，
+     * 释放金额以冻结明细为准；重复消息查不到冻结中明细，天然幂等，不会重复释放。
+     *
+     * @param order 已回单确认的运单
+     */
+    private void releaseCarrierShipMoney(Order order) {
+        JSONObject data = new JSONObject();
+        data.put("userId", order.getCarrierUserId());
+        data.put("orderNo", order.getOrderId());
+        data.put("bizType", BizTypeEnum.SHIP_MONEY.getValue());
+        rabbitMqProducer.send(SHIP_MONEY_ROUTING_KEY, data);
+        log.info("已发送承运方发货保证金释放消息: orderId={}, carrierUserId={}", order.getOrderId(), order.getCarrierUserId());
+    }
+
+    /**
+     * 货主确认成交（状态机：摘单(2) -> 成交(3)）
+     * <p>
+     * 业务与安全规则：
+     * 1) 仅该运单货主本人可操作，身份取自登录态 UserContext，不信任请求参数；
+     * 2) 成交前必须有承运方（已摘单），保证资金/履约有明确对象；
+     * 3) CAS(where id=? and status=2) 单条 UPDATE 原子流转，外层另有分布式锁，防并发互相覆盖；
+     * 4) 幂等：已成交(3) 的运单重复请求直接返回成功，防止前端双击/重试误报。
+     * 注：运费仍处于「托管冻结」，成交不触资金，待运单完成/取消时统一解冻结算。
+     */
+    @Override
+    public Result dealOrder(OrderOperateDTO orderOperateDTO) {
+        String orderId = normalizeOperateOrderId(orderOperateDTO);
+        if (orderId == null) {
+            return Result.fail("请选择要成交的运单");
+        }
+        LoginSession session = UserContext.get();
+        if (session == null || session.getUserId() == null || session.getUserId().trim().isEmpty()) {
+            return Result.fail("登录状态已失效，请重新登录");
+        }
+        Order order = fetchOrder(orderId);
+        if (order == null) {
+            return Result.fail("运单不存在或已删除");
+        }
+        // 安全校验：仅货主本人
+        if (!session.getUserId().equals(order.getShipperUserId())) {
+            log.warn("成交失败：非货主本人操作, orderId={}, operator={}", orderId, session.getUserId());
+            return Result.fail("只能操作自己发布的运单");
+        }
+        // 幂等：已成交
+        if (order.getStatus() != null && order.getStatus() == OrderStatusEnum.DEAL.getValue()) {
+            log.info("重复成交请求，幂等返回成功: orderId={}", orderId);
+            return Result.success();
+        }
+        if (order.getStatus() == null || order.getStatus() != OrderStatusEnum.ACCEPT.getValue()) {
+            return Result.fail(order.getStatus() != null && order.getStatus() == OrderStatusEnum.PUBLISH.getValue()
+                    ? "该运单尚未被摘单，暂无法成交"
+                    : "该运单已进入履约/结算流程，无法成交");
+        }
+        if (order.getCarrierUserId() == null || order.getCarrierUserId().trim().isEmpty()) {
+            return Result.fail("该运单缺少承运方信息，无法成交");
+        }
+
+        // CAS 原子流转：仅当仍处于「摘单(2)」才可成交
+        int rows = baseMapper.update(null, Wrappers.<Order>lambdaUpdate()
+                .set(Order::getStatus, OrderStatusEnum.DEAL.getValue())
+                .set(Order::getStatusDesc, OrderStatusEnum.DEAL.getName())
+                .set(Order::getUpdateTime, new Date())
+                .eq(Order::getId, order.getId())
+                .eq(Order::getStatus, OrderStatusEnum.ACCEPT.getValue()));
+        if (rows == 1) {
+            log.info("确认成交成功: orderId={}, carrierUserId={}", orderId, order.getCarrierUserId());
+            return Result.success();
+        }
+        // CAS 竞争失败：补偿确认是否已成交成功（并发重放场景）
+        Order latest = baseMapper.selectById(order.getId());
+        if (latest != null && latest.getStatus() != null && latest.getStatus() == OrderStatusEnum.DEAL.getValue()) {
+            log.info("成交并发重试命中已成交，幂等返回成功: orderId={}", orderId);
+            return Result.success();
+        }
+        return Result.fail("操作失败，运单状态已变化，请刷新后重试");
+    }
+
+    /**
+     * 货主取消承运方摘单（状态机：摘单(2) -> 发布(1)）
+     * <p>
+     * 取消成功后清空承运方信息，运单回到货源大厅重新等待其他司机摘单；
+     * 运费托管冻结保持不变，不影响下次摘单履约。
+     */
+    @Override
+    public Result cancelAccept(OrderOperateDTO orderOperateDTO) {
+        String orderId = normalizeOperateOrderId(orderOperateDTO);
+        if (orderId == null) {
+            return Result.fail("请选择要取消摘单的运单");
+        }
+        LoginSession session = UserContext.get();
+        if (session == null || session.getUserId() == null || session.getUserId().trim().isEmpty()) {
+            return Result.fail("登录状态已失效，请重新登录");
+        }
+        Order order = fetchOrder(orderId);
+        if (order == null) {
+            return Result.fail("运单不存在或已删除");
+        }
+        // 安全校验：仅货主本人
+        if (!session.getUserId().equals(order.getShipperUserId())) {
+            log.warn("取消摘单失败：非货主本人操作, orderId={}, operator={}", orderId, session.getUserId());
+            return Result.fail("只能操作自己发布的运单");
+        }
+        // 幂等：已是发布态且未绑定承运方，说明摘单已取消成功
+        if (order.getStatus() != null && order.getStatus() == OrderStatusEnum.PUBLISH.getValue()
+                && (order.getCarrierUserId() == null || order.getCarrierUserId().trim().isEmpty())) {
+            log.info("重复取消摘单请求，幂等返回成功: orderId={}", orderId);
+            return Result.success();
+        }
+        if (order.getStatus() == null || order.getStatus() != OrderStatusEnum.ACCEPT.getValue()) {
+            return Result.fail(order.getStatus() != null && order.getStatus() == OrderStatusEnum.DEAL.getValue()
+                    ? "该运单已成交进入履约，无法取消摘单"
+                    : "该运单当前状态不可取消摘单");
+        }
+
+        // CAS 原子流转：仅当仍处于「摘单(2)」才可取消，并清空承运方信息
+        int rows = baseMapper.update(null, Wrappers.<Order>lambdaUpdate()
+                .set(Order::getStatus, OrderStatusEnum.PUBLISH.getValue())
+                .set(Order::getStatusDesc, OrderStatusEnum.PUBLISH.getName())
+                .set(Order::getCarrierUserId, null)
+                .set(Order::getCarrierUserName, null)
+                .set(Order::getCarrierMobile, null)
+                .set(Order::getCarrierName, null)
+                .set(Order::getUpdateTime, new Date())
+                .eq(Order::getId, order.getId())
+                .eq(Order::getStatus, OrderStatusEnum.ACCEPT.getValue()));
+        if (rows == 1) {
+            log.info("取消摘单成功，运单恢复发布: orderId={}", orderId);
+            return Result.success();
+        }
+        // CAS 竞争失败：补偿确认是否已取消成功（并发重放场景）
+        Order latest = baseMapper.selectById(order.getId());
+        if (latest != null && latest.getStatus() != null && latest.getStatus() == OrderStatusEnum.PUBLISH.getValue()
+                && (latest.getCarrierUserId() == null || latest.getCarrierUserId().trim().isEmpty())) {
+            return Result.success();
+        }
+        return Result.fail("操作失败，运单状态已变化，请刷新后重试");
+    }
+
+    /**
+     * 校验并规整货主操作参数中的运单号
+     */
+    private String normalizeOperateOrderId(OrderOperateDTO orderOperateDTO) {
+        if (orderOperateDTO == null || orderOperateDTO.getOrderId() == null) {
+            return null;
+        }
+        String orderId = orderOperateDTO.getOrderId().trim();
+        return orderId.isEmpty() ? null : orderId;
+    }
+
+    /**
+     * 按运单号定位未删除的订单（先取主键，后续 CAS 走主键索引）
+     */
+    private Order fetchOrder(String orderId) {
+        return baseMapper.selectOne(Wrappers.<Order>lambdaQuery()
+                .eq(Order::getOrderId, orderId)
+                .eq(Order::getDeleteFlag, (byte) 0)
+                .last("limit 1"));
+    }
 
     @Override
     public Result publishOrder(OrderPublishDTO orderPublishDTO) {
@@ -48,12 +686,11 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
     private Order buildOrder(OrderPublishDTO orderPublishDTO) {
         Order order = new Order();
         BeanUtils.copyProperties(orderPublishDTO, order);
-        order.setOrderId(StringGenerateUtil.generateOrderNo());
         order.setCreateTime(new Date());
         order.setShipperUserName(UserContext.get().getUserName());
         order.setShipperUserId(UserContext.get().getUserId());
-        order.setStatus(1);
-        order.setStatusDesc("发布");
+        order.setStatus(OrderStatusEnum.PUBLISH.getValue());
+        order.setStatusDesc(OrderStatusEnum.PUBLISH.getName());
         return order;
     }
 }

@@ -2,6 +2,7 @@ package com.monkey.order.bsm.biz.mapper;
 
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.monkey.order.bsm.biz.dto.OrderDto;
+import com.monkey.order.bsm.biz.dto.OrderQueryDTO;
 import com.monkey.order.bsm.biz.entity.Order;
 import org.apache.ibatis.annotations.Mapper;
 
@@ -21,5 +22,32 @@ public interface OrderMapper extends BaseMapper<Order> {
 
 
     List<OrderDto> selectListByCondition(Map<String, Object> condition);
+
+    /**
+     * 查询货主已发布的订单列表（对应 mapper XML：selectPublishOrderList）
+     *
+     * @param query 查询条件：shipperUserId 必传，status 选填
+     * @return 订单列表，按发布时间倒序
+     */
+    List<OrderDto> selectPublishOrderList(OrderQueryDTO query);
+
+    /**
+     * 承运端货源大厅列表（对应 mapper XML：selectSourceOrderList）
+     *
+     * @param query 查询条件：shipperKeyword / carrierKeyword 选填，不传则返回全部可摘货源（status 1 发布 / 2 摘单）
+     * @return 货源订单列表，按发布时间倒序
+     */
+    List<OrderDto> selectSourceOrderList(OrderQueryDTO query);
+
+    /**
+     * 承运端「我的运单」列表（对应 mapper XML：selectCarrierOrderList）
+     * <p>
+     * 查询当前承运方所有已摘的运单（status >= 2 摘单及后续履约状态，
+     * 取消摘单后 carrier_user_id 已清空自然被排除）。
+     *
+     * @param query 查询条件：carrierUserId 必传，status/statusList 选填
+     * @return 订单列表，按发布时间倒序
+     */
+    List<OrderDto> selectCarrierOrderList(OrderQueryDTO query);
 
 }

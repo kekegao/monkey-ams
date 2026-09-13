@@ -64,7 +64,7 @@
         <dependency>
             <groupId>com.ctrip.framework.apollo</groupId>
             <artifactId>apollo-client</artifactId>
-            <version>2.5.0</version>
+            <version>${apollo-client.version}</version>
         </dependency>
 
         <dependency>
@@ -96,6 +96,12 @@
             <groupId>com.monkey</groupId>
             <artifactId>monkey-common-mq</artifactId>
             <version>${monkey-common-mq.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>com.monkey</groupId>
+            <artifactId>monkey-common-auth</artifactId>
+            <version>${monkey-common-auth.verison}</version>
         </dependency>
 
 

@@ -10,7 +10,11 @@
     </parent>
 
     <artifactId>invoice-bsm-biz</artifactId>
-
+    <packaging>pom</packaging>
+    <modules>
+        <module>invoice-bsm-biz-api</module>
+        <module>invoice-bsm-biz-service</module>
+    </modules>
     <properties>
         <maven.compiler.source>21</maven.compiler.source>
         <maven.compiler.target>21</maven.compiler.target>

@@ -2,11 +2,12 @@ package com.monkey.order.bsm.biz.dto;
 
 import lombok.Data;
 
+import java.io.Serializable;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Data
-public class OrderDto {
+public class OrderDto implements Serializable {
 
     private static final long serialVersionUID = 1L;
 
@@ -24,6 +25,11 @@ public class OrderDto {
      * 订单状态
      */
     private Integer status;
+
+    /**
+     * 订单状态描述，例如：发布
+     */
+    private String statusDesc;
 
     /**
      * 货主id
@@ -69,6 +75,11 @@ public class OrderDto {
      * 物品重量
      */
     private BigDecimal goodsWeight;
+
+    /**
+     * 运费金额
+     */
+    private BigDecimal transportMoney;
 
     /**
      * 发货源省市区-省份
@@ -118,10 +129,10 @@ public class OrderDto {
     /**
      * 创建时间
      */
-    private LocalDateTime createTime;
+    private String createTime;
 
     /**
      * 更新时间
      */
-    private LocalDateTime updateTime;
+    private String updateTime;
 }

@@ -35,7 +35,83 @@
     </sql>
 
     <select id="selectListByCondition" resultType="com.monkey.order.bsm.biz.dto.OrderDto">
+        select <include refid="Base_Column_List"/> from tf_b_order
+    </select>
 
+    <!-- 已发布订单列表查询列（含状态描述、运费等列表页所需字段） -->
+    <sql id="Publish_Column_List">
+        id, order_id, status, status_desc, shipper_user_id, shipper_user_name, shipper_name, shipper_mobile,
+        carrier_user_id, carrier_user_name, carrier_name, carrier_mobile, goods_type, goods_description,
+        goods_weight, transport_money, shipper_province, shipper_city, shipper_area, shipper_address,
+        carrier_province, carrier_city, carrier_area, carrier_address, delete_flag, create_time, update_time
+    </sql>
+
+    <!-- 货主已发布订单列表：按货主查询，支持按状态筛选，按发布时间倒序 -->
+    <select id="selectPublishOrderList" resultType="com.monkey.order.bsm.biz.dto.OrderDto">
+        select <include refid="Publish_Column_List"/>
+        from tf_b_order
+        where delete_flag = 0
+          and shipper_user_id = #{shipperUserId}
+        <choose>
+          <when test="statusList != null and statusList.size() > 0">
+            and status in
+            <foreach collection="statusList" item="s" index="index" open="(" separator="," close=")">
+              #{s}
+            </foreach>
+          </when>
+          <when test="status != null">
+            and status = #{status}
+          </when>
+        </choose>
+        order by create_time desc, id desc
+    </select>
+
+    <!-- 承运端货源大厅列表：status 1发布/2摘单 均展示；支持发货地、收货地关键字模糊搜索，按发布时间倒序 -->
+    <select id="selectSourceOrderList" resultType="com.monkey.order.bsm.biz.dto.OrderDto">
+        select <include refid="Publish_Column_List"/>
+        from tf_b_order
+        where delete_flag = 0
+          and status in (1, 2)
+        <if test="shipperKeyword != null and shipperKeyword != ''">
+          and (
+              shipper_province like concat('%', #{shipperKeyword}, '%')
+              or shipper_city like concat('%', #{shipperKeyword}, '%')
+              or shipper_area like concat('%', #{shipperKeyword}, '%')
+              or shipper_address like concat('%', #{shipperKeyword}, '%')
+          )
+        </if>
+        <if test="carrierKeyword != null and carrierKeyword != ''">
+          and (
+              carrier_province like concat('%', #{carrierKeyword}, '%')
+              or carrier_city like concat('%', #{carrierKeyword}, '%')
+              or carrier_area like concat('%', #{carrierKeyword}, '%')
+              or carrier_address like concat('%', #{carrierKeyword}, '%')
+          )
+        </if>
+        order by create_time desc, id desc
+    </select>
+
+    <!-- 承运端「我的运单」列表：按承运人查询其所有已摘运单（status >= 2），
+         摘单前 carrier_user_id 为空、取消摘单后会清空 carrier_user_id，均可自然排除；
+         支持按状态筛选，按发布时间倒序 -->
+    <select id="selectCarrierOrderList" resultType="com.monkey.order.bsm.biz.dto.OrderDto">
+        select <include refid="Publish_Column_List"/>
+        from tf_b_order
+        where delete_flag = 0
+          and carrier_user_id = #{carrierUserId}
+          and status &gt;= 2
+        <choose>
+          <when test="statusList != null and statusList.size() > 0">
+            and status in
+            <foreach collection="statusList" item="s" index="index" open="(" separator="," close=")">
+              #{s}
+            </foreach>
+          </when>
+          <when test="status != null">
+            and status = #{status}
+          </when>
+        </choose>
+        order by create_time desc, id desc
     </select>
 
 </mapper>

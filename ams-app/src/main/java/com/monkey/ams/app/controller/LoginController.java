@@ -1,7 +1,7 @@
 package com.monkey.ams.app.controller;
 
 import com.monkey.ams.common.response.Result;
-import com.monkey.user.bsm.api.dto.LoginRequest;
+import com.monkey.user.bsm.api.request.LoginRequest;
 import com.monkey.user.bsm.api.dto.LoginResponse;
 import com.monkey.user.bsm.api.dto.User;
 import com.monkey.user.bsm.api.protocol.UserProtocol;
