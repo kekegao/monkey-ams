@@ -48,7 +48,7 @@ public class AccountProtocolImpl implements AccountProtocol {
     /**
      * 平台公司对公账户用户ID（货主清算收款账户，由配置中心下发；未配置时货主清算直接失败，避免资金流向不确定账户）
      */
-    @Value("${account.platform.company-user-id:}")
+    @Value("${account.platform.company-user-id:1}")
     private String platformCompanyUserId;
 
     /**
