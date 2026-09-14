@@ -1,7 +1,13 @@
 package com.monkey.settlement.bsm.biz.service.impl;
 
+import com.alibaba.fastjson.JSONObject;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
+import com.monkey.account.bsm.biz.api.AccountProtocol;
+import com.monkey.account.bsm.biz.request.SettleCarrierMoneyAccountRequest;
+import com.monkey.ams.common.constants.UserTypeEnum;
+import com.monkey.ams.common.response.Result;
 import com.monkey.ams.common.utils.StringGenerateUtil;
+import com.monkey.common.mq.core.RabbitMqProducer;
 import com.monkey.settlement.bsm.biz.constants.SettlementConstants;
 import com.monkey.settlement.bsm.biz.dto.SettlementApplyResultDto;
 import com.monkey.settlement.bsm.biz.dto.SettlementCarrierDto;
@@ -15,6 +21,7 @@ import com.monkey.settlement.bsm.biz.service.inf.SettlementService;
 import com.monkey.settlement.bsm.biz.service.inf.SettlementShipperService;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.dubbo.config.annotation.DubboReference;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -25,6 +32,9 @@ import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.Date;
+
+import static com.monkey.ams.common.constants.AmsRabbitConstants.SETTLEMENT_DELAY_ROUTING_KEY;
+import static com.monkey.common.mq.constants.RabbitConstants.SETTLEMENT_DELAY_EXCHANGE;
 
 /**
  * 清算单业务服务实现
@@ -53,6 +63,12 @@ import java.util.Date;
 public class SettlementServiceImpl implements SettlementService {
 
     @Resource
+    private RabbitMqProducer rabbitMqProducer;
+
+    @DubboReference
+    private AccountProtocol accountProtocol;
+
+    @Resource
     private SettlementShipperService settlementShipperService;
 
     @Resource
@@ -67,13 +83,13 @@ public class SettlementServiceImpl implements SettlementService {
     /**
      * 承运方承担的服务费率（默认 5%），可由配置中心覆盖
      */
-    @Value("${settlement.carrier.service-fee-rate:0.0500}")
+    @Value("${settlement.carrier.service-fee-rate:0.0010}")
     private BigDecimal defaultCarrierServiceFeeRate;
 
     /**
      * 货主承担的服务费率（默认 0，即不向货主收取服务费），可由配置中心覆盖
      */
-    @Value("${settlement.shipper.service-fee-rate:0.0000}")
+    @Value("${settlement.shipper.service-fee-rate:0.0010}")
     private BigDecimal defaultShipperServiceFeeRate;
 
     @Override
@@ -121,6 +137,13 @@ public class SettlementServiceImpl implements SettlementService {
             settlementShipperService.save(shipper);
             log.info("货主清算单生成成功: orderId={}, settlementNo={}, payableAmount={}, frozenAmount={}",
                     orderId, shipper.getSettlementNo(), payableAmount, frozenAmount);
+
+            //货主清算工单生成后，在这里做货主清算功能，走延迟队列，延迟60S
+            JSONObject data = new JSONObject();
+            data.put("settlementNo", shipper.getSettlementNo());
+            data.put("orderId", shipper.getOrderId());
+            data.put("userType", UserTypeEnum.SHIPPER.getValue());
+            rabbitMqProducer.send(SETTLEMENT_DELAY_EXCHANGE,SETTLEMENT_DELAY_ROUTING_KEY, data);
         }
         if (carrier == null) {
             carrier = buildCarrier(request, now, transportMoney, carrierServiceFeeRate,
@@ -128,6 +151,12 @@ public class SettlementServiceImpl implements SettlementService {
             settlementCarrierService.save(carrier);
             log.info("承运方清算单生成成功: orderId={}, settlementNo={}, settleAmount={}, serviceFee={}",
                     orderId, carrier.getSettlementNo(), settleAmount, carrierServiceFee);
+            //承运方清算工单生成后，在这里做承运方清算功能，走延迟队列，延迟30S
+            /*JSONObject data = new JSONObject();
+            data.put("settlementNo", carrier.getSettlementNo());
+            data.put("orderId", carrier.getOrderId());
+            data.put("userType", UserTypeEnum.DRIVER.getValue());
+            rabbitMqProducer.send(SETTLEMENT_DELAY_EXCHANGE,SETTLEMENT_DELAY_ROUTING_KEY, data);*/
         }
         return buildResult(shipper, carrier, false);
     }
@@ -142,6 +171,151 @@ public class SettlementServiceImpl implements SettlementService {
     public SettlementCarrierDto queryCarrierSettlement(String orderId) {
         SettlementCarrier carrier = queryCarrierEntity(orderId);
         return carrier == null ? null : toCarrierDto(carrier);
+    }
+
+    /**
+     * 承运方对账：平台公司对公账户 -> 承运方账户划账
+     * <p>
+     * 资金方向（与货主清算分离）：
+     * 1) 货主清算（独立 MQ 流程）：货主托管冻结运费 -> 平台公司对公账户；
+     * 2) 承运方对账（本方法）：平台公司对公账户 -> 承运方智运宝账户，不从货主侧再扣减任何资金。
+     * <p>
+     * 幂等与并发：
+     * 1) 承运方清算单已结算 -> 幂等返回成功；
+     * 2) 待结算 -> 结算中 CAS 抢占，防并发重复划账（结算中表示上一次执行中断，账户侧按清算单号幂等，可安全续跑）；
+     * 3) 账户侧以清算单号为幂等锚点落地划账流水，重复请求不会重复出账。
+     *
+     * @param orderId  运单号
+     * @param operator 操作人（承运方用户ID）
+     * @return 对账结果
+     */
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public Result reconcileOrder(String orderId, String operator) {
+        if (orderId == null || orderId.trim().isEmpty()) {
+            return Result.fail("运单号为空");
+        }
+        if (operator == null || operator.trim().isEmpty()) {
+            return Result.fail("操作人为空");
+        }
+
+        // 1. 查询两侧清算单（uk_order_id 唯一索引）
+        SettlementShipper shipper = queryShipperEntity(orderId);
+        SettlementCarrier carrier = queryCarrierEntity(orderId);
+        if (carrier == null) {
+            log.warn("对账失败：承运方清算单不存在, orderId={}", orderId);
+            return Result.fail("承运方清算单不存在，无法对账");
+        }
+
+        // 2. 幂等命中：承运方清算单已结算，资金已划付，直接返回成功
+        if (SettlementConstants.STATUS_SETTLED == carrier.getStatus()) {
+            log.info("对账幂等命中：承运方清算单已结算, orderId={}, carrierSettlementNo={}",
+                    orderId, carrier.getSettlementNo());
+            return Result.success();
+        }
+
+        // 3. 前置校验：承运方款项由平台公司对公账户划付，货主清算未完成时平台账户尚无该运单资金，
+        //    此处拒绝划账，避免平台垫付与资金悬空
+        if (shipper == null || shipper.getStatus() == null
+                || SettlementConstants.STATUS_SETTLED != shipper.getStatus()) {
+            log.warn("对账失败：货主清算未完成, orderId={}, shipperStatus={}",
+                    orderId, shipper == null ? null : shipper.getStatus());
+            return Result.fail("货主清算未完成，平台公司对公账户尚无该运单资金，暂不可向承运方划账");
+        }
+
+        // 4. 状态校验：仅「待结算(1)」与新「结算中(2)」（上次执行中断可续跑）允许对账
+        Byte carrierStatus = carrier.getStatus();
+        if (SettlementConstants.STATUS_PENDING != carrierStatus && SettlementConstants.STATUS_SETTLING != carrierStatus) {
+            log.warn("对账失败：承运方清算单状态异常, orderId={}, carrierStatus={}, statusDesc={}",
+                    orderId, carrierStatus, carrier.getStatusDesc());
+            return Result.fail("承运方清算单状态异常，无法对账");
+        }
+
+        // 5. 金额安全校验：划账金额取清算单实收金额，异常金额绝不发起资金动作
+        BigDecimal settleAmount = carrier.getSettleAmount();
+        if (settleAmount == null || settleAmount.compareTo(BigDecimal.ZERO) <= 0) {
+            log.warn("对账失败：承运方实收金额异常, orderId={}, settleAmount={}", orderId, settleAmount);
+            return Result.fail("承运方实收金额异常，拒绝划账");
+        }
+        if (settleAmount.compareTo(SettlementConstants.MAX_TRANSPORT_MONEY) > 0) {
+            log.warn("对账失败：承运方实收金额超出合理范围, orderId={}, settleAmount={}", orderId, settleAmount);
+            return Result.fail("承运方实收金额超出合理范围，拒绝划账");
+        }
+
+        // 6. 状态推进：待结算(1) -> 结算中(2)，CAS 防并发重复划账
+        if (SettlementConstants.STATUS_PENDING == carrierStatus) {
+            boolean advanced = settlementCarrierService.lambdaUpdate()
+                    .set(SettlementCarrier::getStatus, SettlementConstants.STATUS_SETTLING)
+                    .set(SettlementCarrier::getStatusDesc, SettlementConstants.STATUS_DESC_SETTLING)
+                    .set(SettlementCarrier::getUpdateTime, LocalDateTime.now())
+                    .set(SettlementCarrier::getUpdateName, operator)
+                    .eq(SettlementCarrier::getId, carrier.getId())
+                    .eq(SettlementCarrier::getStatus, SettlementConstants.STATUS_PENDING)
+                    .update();
+            if (!advanced) {
+                SettlementCarrier latest = settlementCarrierService.getById(carrier.getId());
+                Byte latestStatus = latest == null ? null : latest.getStatus();
+                if (latestStatus != null && SettlementConstants.STATUS_SETTLED == latestStatus) {
+                    // 已被并发请求划账完成，幂等返回
+                    log.info("对账幂等命中：承运方清算单已被并发请求结算, orderId={}, carrierSettlementNo={}",
+                            orderId, carrier.getSettlementNo());
+                    return Result.success();
+                }
+                if (latestStatus == null || SettlementConstants.STATUS_SETTLING != latestStatus) {
+                    log.warn("对账失败：承运方清算单状态已被并发修改, orderId={}, latestStatus={}",
+                            orderId, latestStatus);
+                    return Result.fail("承运方清算单状态已被并发修改，请稍后重试");
+                }
+                // 已是「结算中」：上一次执行中断，账户侧按清算单号幂等，继续执行安全
+            }
+        }
+
+        // 7. 账户侧资金动作：平台公司对公账户 -> 承运方账户
+        //    （出账账户由账户服务配置指定，不接受调用方传入；划账金额取清算单实收金额）
+        SettleCarrierMoneyAccountRequest accountRequest = new SettleCarrierMoneyAccountRequest();
+        accountRequest.setCarrierUserId(carrier.getCarrierUserId());
+        accountRequest.setSettlementNo(carrier.getSettlementNo());
+        accountRequest.setOrderNo(orderId);
+        accountRequest.setSettleAmount(settleAmount);
+        accountRequest.setOperator(operator);
+
+        Result<BigDecimal> accountResult = accountProtocol.settleCarrierMoneyFromCompanyAccount(accountRequest);
+        if (accountResult == null || !accountResult.isSuccess()) {
+            String message = accountResult == null ? "账户服务无响应" : accountResult.getMessage();
+            log.warn("对账失败：账户侧划账未成功, orderId={}, msg={}", orderId, message);
+            return Result.fail("资金划账失败：" + message);
+        }
+        BigDecimal paidAmount = accountResult.getData() == null ? settleAmount : accountResult.getData();
+
+        // 8. 回写承运方清算单为已结算（CAS：待结算/结算中 -> 已结算，避免并发覆盖）
+        LocalDateTime now = LocalDateTime.now();
+        boolean carrierUpdated = settlementCarrierService.lambdaUpdate()
+                .set(SettlementCarrier::getStatus, SettlementConstants.STATUS_SETTLED)
+                .set(SettlementCarrier::getStatusDesc, SettlementConstants.STATUS_DESC_SETTLED)
+                .set(SettlementCarrier::getPayTime, now)
+                .set(SettlementCarrier::getUpdateTime, now)
+                .set(SettlementCarrier::getUpdateName, operator)
+                .eq(SettlementCarrier::getId, carrier.getId())
+                .in(SettlementCarrier::getStatus,
+                        SettlementConstants.STATUS_PENDING, SettlementConstants.STATUS_SETTLING)
+                .update();
+        if (!carrierUpdated) {
+            // 账户侧已按清算单号幂等，不会重复出账；此处只需确认是否已被并发请求置为已结算
+            SettlementCarrier latest = settlementCarrierService.getById(carrier.getId());
+            if (latest != null && latest.getStatus() != null
+                    && SettlementConstants.STATUS_SETTLED == latest.getStatus()) {
+                log.info("承运方清算单已由并发请求置为已结算，对账按成功收口: orderId={}, carrierSettlementNo={}",
+                        orderId, carrier.getSettlementNo());
+                return Result.success();
+            }
+            log.error("承运方清算单回写失败，需人工核对资金与单据: orderId={}, carrierSettlementNo={}",
+                    orderId, carrier.getSettlementNo());
+            return Result.fail("承运方清算单回写失败，请稍后重试");
+        }
+
+        log.info("对账成功（平台公司对公账户 -> 承运方账户）: orderId={}, carrierSettlementNo={}, carrierUserId={}, settleAmount={}, operator={}",
+                orderId, carrier.getSettlementNo(), carrier.getCarrierUserId(), paidAmount, operator);
+        return Result.success();
     }
 
     /**

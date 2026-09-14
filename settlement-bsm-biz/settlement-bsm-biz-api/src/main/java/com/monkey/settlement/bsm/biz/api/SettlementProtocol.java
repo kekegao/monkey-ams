@@ -47,4 +47,20 @@ public interface SettlementProtocol {
      * @return 承运方清算单
      */
     Result<SettlementCarrierDto> queryCarrierSettlement(String orderId);
+
+    /**
+     * 承运方对账（结算执行）：按运单号执行资金结算并更新两侧清算单为已结算。
+     * <p>
+     * 触发时机：承运方在 App 端点击「对账」确认清算金额无误后调用。
+     * 安全与幂等：
+     * 1) 仅处理本运单已存在的货主/承运方清算单，且状态须为「待结算(1)」；
+     * 2) 调用账户模块完成「货主托管运费扣划 -> 承运方余额入账」，账户侧按冻结流水号幂等；
+     * 3) 分布式锁 + 本地事务保证两侧清算单同时变为已结算，避免单张清算单中间态；
+     * 4) 重复调用时，若清算单已是已结算(3) 则直接幂等返回成功。
+     *
+     * @param orderId 运单号
+     * @param operator 操作人（承运方用户ID）
+     * @return 对账结果
+     */
+    Result reconcileOrder(String orderId, String operator);
 }

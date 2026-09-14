@@ -183,4 +183,34 @@ public class SettlementProtocolImpl implements SettlementProtocol {
     private boolean isBlank(String value) {
         return value == null || value.trim().isEmpty();
     }
+
+    /**
+     * 承运方对账（结算执行）。
+     * <p>
+     * 分布式锁按运单号串行化，避免 App 端重试或并发点击导致重复资金扣划；
+     * 同一运单重复调用时，若清算单已是已结算则幂等返回成功。
+     *
+     * @param orderId  运单号
+     * @param operator 操作人（承运方用户ID）
+     * @return 对账结果
+     */
+    @DistributedLock(key = "'settlement:reconcile:' + #orderId", waitTime = 3, leaseTime = -1)
+    @Override
+    public Result reconcileOrder(String orderId, String operator) {
+        if (isBlank(orderId)) {
+            return Result.fail("运单号不能为空");
+        }
+        if (isBlank(operator)) {
+            return Result.fail("操作人不能为空");
+        }
+        try {
+            return settlementService.reconcileOrder(orderId.trim(), operator.trim());
+        } catch (IllegalArgumentException e) {
+            log.warn("对账业务校验失败: orderId={}, message={}", orderId, e.getMessage());
+            return Result.fail(e.getMessage());
+        } catch (Exception e) {
+            log.error("对账失败: orderId={}", orderId, e);
+            return Result.fail("对账失败，请稍后重试");
+        }
+    }
 }

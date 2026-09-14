@@ -88,6 +88,18 @@ public interface OrderService extends IService<Order> {
     Result confirmReceipt(OrderOperateDTO orderOperateDTO);
 
     /**
+     * 承运方对账：将订单由 结算申请(7) 流转为 对账(9)，确认清算金额并触发资金结算。
+     * 安全要求：仅该运单承运方本人可操作（登录态 UserContext 校验）；
+     * 防并发要求：外层分布式锁 + 状态 CAS，避免重复对账或与其它流转操作互相覆盖；
+     * 幂等要求：已处于对账及之后状态的运单重复请求直接返回成功；
+     * 资金动作：调用 settlement 模块完成货主托管运费扣划与承运方余额入账。
+     *
+     * @param orderOperateDTO 承运方操作参数（orderId 运单号）
+     * @return 对账结果
+     */
+    Result reconcileOrder(OrderOperateDTO orderOperateDTO);
+
+    /**
      * 货主回单确认：将订单由 确认收货(5) 流转为 回单确认(6)，标志回单签收核对完成。
      * 安全要求：仅该运单货主本人可操作（登录态 UserContext 校验）；
      * 防并发要求：外层分布式锁 + 状态 CAS，避免重复确认；

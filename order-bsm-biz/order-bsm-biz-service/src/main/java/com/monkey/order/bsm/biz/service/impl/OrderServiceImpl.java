@@ -314,6 +314,80 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
     }
 
     /**
+     * 承运方对账（状态机：结算申请(7) -> 对账(9)）
+     * <p>
+     * 业务与安全规则：
+     * 1) 仅该运单承运方本人可操作，身份取自登录态 UserContext，不信任请求参数；
+     * 2) 仅「结算申请(7)」状态可对账，对账后由 settlement 模块完成货主托管运费扣划与承运方余额入账；
+     * 3) CAS(where id=? and status=7) 单条 UPDATE 原子流转，外层另有分布式锁，防并发重复对账；
+     * 4) 幂等：已处于对账(9) 及之后状态的运单重复请求直接返回成功，防止前端双击/重试误报。
+     * <p>
+     * 高可用/高性能：
+     * - 账户资金动作封装在 settlement 模块内，账户侧按冻结流水号幂等、按货主用户加锁，
+     *   订单侧仅做轻量级状态推进，避免订单服务长事务；
+     * -  settlement 失败直接返回错误，订单状态仍停留在 7，前端可重试，重试由 settlement 幂等兜底。
+     */
+    @Override
+    public Result reconcileOrder(OrderOperateDTO orderOperateDTO) {
+        String orderId = normalizeOperateOrderId(orderOperateDTO);
+        if (orderId == null) {
+            return Result.fail("请选择要对账的运单");
+        }
+        LoginSession session = UserContext.get();
+        if (session == null || session.getUserId() == null || session.getUserId().trim().isEmpty()) {
+            return Result.fail("登录状态已失效，请重新登录");
+        }
+        Order order = fetchOrder(orderId);
+        if (order == null) {
+            return Result.fail("运单不存在或已删除");
+        }
+        // 安全校验：仅承运方本人
+        if (order.getCarrierUserId() == null || !session.getUserId().equals(order.getCarrierUserId())) {
+            log.warn("对账失败：非承运方本人操作, orderId={}, operator={}", orderId, session.getUserId());
+            return Result.fail("只能操作自己承运的运单");
+        }
+        // 幂等：已处于对账(9) 及之后状态
+        Integer currentStatus = order.getStatus();
+        if (currentStatus != null && currentStatus >= OrderStatusEnum.RECONCILIATION.getValue()) {
+            log.info("重复对账请求，幂等返回成功: orderId={}", orderId);
+            return Result.success();
+        }
+        if (currentStatus == null || currentStatus != OrderStatusEnum.SETTLEMENT_APPLY.getValue()) {
+            return Result.fail(currentStatus != null && currentStatus == OrderStatusEnum.RECEIPT_CONFIRM.getValue()
+                    ? "该运单尚未申请结算，请等待货主发起结算"
+                    : "该运单当前状态不可对账");
+        }
+
+        // 调用 settlement 模块执行资金结算（幂等、分布式锁、本地事务）
+        Result settleResult = settlementProtocol.reconcileOrder(orderId, session.getUserId());
+        if (settleResult == null || !settleResult.isSuccess()) {
+            String msg = settleResult == null ? "资金结算服务无响应" : settleResult.getMessage();
+            log.warn("对账失败：资金结算未成功, orderId={}, msg={}", orderId, msg);
+            return Result.fail("对账失败：" + (msg != null ? msg : "资金结算失败，请稍后重试"));
+        }
+
+        // CAS 原子流转：仅当仍处于「结算申请(7)」才可推进为对账(9)
+        int rows = baseMapper.update(null, Wrappers.<Order>lambdaUpdate()
+                .set(Order::getStatus, OrderStatusEnum.RECONCILIATION.getValue())
+                .set(Order::getStatusDesc, OrderStatusEnum.RECONCILIATION.getName())
+                .set(Order::getUpdateTime, new Date())
+                .eq(Order::getId, order.getId())
+                .eq(Order::getStatus, OrderStatusEnum.SETTLEMENT_APPLY.getValue()));
+        if (rows == 1) {
+            log.info("承运方对账成功: orderId={}, carrierUserId={}", orderId, session.getUserId());
+            return Result.success();
+        }
+        // CAS 竞争失败：补偿确认是否已由并发请求推进到对账(9)
+        Order latest = baseMapper.selectById(order.getId());
+        if (latest != null && latest.getStatus() != null
+                && latest.getStatus() >= OrderStatusEnum.RECONCILIATION.getValue()) {
+            log.info("对账并发重试命中已对账，幂等返回成功: orderId={}", orderId);
+            return Result.success();
+        }
+        return Result.fail("操作失败，运单状态已变化，请刷新后重试");
+    }
+
+    /**
      * 回单确认（状态机：确认收货(5) -> 回单确认(6)）
      * <p>
      * 业务与安全规则：
@@ -388,7 +462,10 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
      *    再 CAS(where id=? and status=6) 原子流转，避免出现「订单已申请但清算单缺失」的脏状态：
      *    清算服务不可用/超时则订单保持回单确认(6)，用户重试即可（清算服务幂等，不会重复建单）；
      * 4) 幂等：已处于结算申请(7)及之后状态的运单，重复请求仍会调用清算服务做一次幂等补齐（自愈），
-     *    之后直接返回成功，防止前端双击/重试误报；
+     *    之后直接返回成功，防止前端双击/重试误报；清算服务返回的幂等标记 existed 一并落日志，
+     *    可区分「本次新建清算单」与「命中既有清算单」，便于排查重复请求与脏数据；
+     *    注意：existed=true 不能作为提前返回的依据，订单状态必须由 CAS 推进，否则会出现
+     *    「清算单已建、订单仍停在回单确认」的脏状态；
      * 5) 资金动作：申请仅推进结算流程，托管中的运费保持冻结，
      *    实际运费扣划/入账承运方由后续「结算(8)」阶段（settlement 模块）统一处理。
      */
@@ -435,8 +512,14 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
             log.warn("结算申请失败：清算单生成异常, orderId={}, message={}", orderId, message);
             return Result.fail(message);
         }
+
+        // 取清算服务返回的幂等标记：true 表示该运单清算单此前已生成，本次为幂等补齐而非新建
+        SettlementApplyResultDto bills = billResult.getData();
+        boolean billsExisted = bills != null && Boolean.TRUE.equals(bills.getExisted());
+
         if (settlementApplied) {
-            log.info("重复结算申请请求，清算单已就绪，幂等返回成功: orderId={}, status={}", orderId, order.getStatus());
+            log.info("重复结算申请请求，清算单已就绪（清算服务幂等命中={}），幂等返回成功: orderId={}, status={}",
+                    billsExisted, orderId, order.getStatus());
             return Result.success();
         }
 
@@ -448,17 +531,17 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
                 .eq(Order::getId, order.getId())
                 .eq(Order::getStatus, OrderStatusEnum.RECEIPT_CONFIRM.getValue()));
         if (rows == 1) {
-            SettlementApplyResultDto bills = billResult.getData();
-            log.info("结算申请成功: orderId={}, shipperUserId={}, shipperSettlementNo={}, carrierSettlementNo={}",
+            log.info("结算申请成功: orderId={}, shipperUserId={}, shipperSettlementNo={}, carrierSettlementNo={}, 清算服务幂等命中={}",
                     orderId, session.getUserId(),
                     bills == null ? null : bills.getShipperSettlementNo(),
-                    bills == null ? null : bills.getCarrierSettlementNo());
+                    bills == null ? null : bills.getCarrierSettlementNo(),
+                    billsExisted);
             return Result.success();
         }
         // CAS 竞争失败：补偿确认是否已申请成功（并发重放场景，清算单已幂等生成，不会重复）
         Order latest = baseMapper.selectById(order.getId());
         if (latest != null && latest.getStatus() != null && latest.getStatus() >= OrderStatusEnum.SETTLEMENT_APPLY.getValue()) {
-            log.info("结算申请并发重试命中已申请，幂等返回成功: orderId={}", orderId);
+            log.info("结算申请并发重试命中已申请（清算服务幂等命中={}），幂等返回成功: orderId={}", billsExisted, orderId);
             return Result.success();
         }
         return Result.fail("操作失败，运单状态已变化，请刷新后重试");

@@ -1,5 +1,6 @@
 package com.monkey.settlement.bsm.biz.service.inf;
 
+import com.monkey.ams.common.response.Result;
 import com.monkey.settlement.bsm.biz.dto.SettlementApplyResultDto;
 import com.monkey.settlement.bsm.biz.dto.SettlementCarrierDto;
 import com.monkey.settlement.bsm.biz.dto.SettlementShipperDto;
@@ -38,4 +39,16 @@ public interface SettlementService {
      * @return 承运方清算单，不存在返回 null
      */
     SettlementCarrierDto queryCarrierSettlement(String orderId);
+
+    /**
+     * 承运方对账（结算执行）：平台公司对公账户 -> 承运方账户划账，并回写承运方清算单为已结算。
+     * <p>
+     * 业务边界：对账只做平台对承运方的划付，不从货主侧扣减任何资金
+     * （货主托管运费由「货主清算」独立流程扣划至平台公司对公账户）。
+     *
+     * @param orderId  运单号
+     * @param operator 操作人（承运方用户ID）
+     * @return 对账结果
+     */
+    Result reconcileOrder(String orderId, String operator);
 }

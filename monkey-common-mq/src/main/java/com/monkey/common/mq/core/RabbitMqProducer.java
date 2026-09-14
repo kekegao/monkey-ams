@@ -30,4 +30,17 @@ public class RabbitMqProducer {
         //rabbitTemplate.send(message);
         rabbitTemplate.convertAndSend(routingKey,message);
     }
+
+    /**
+     * 发送消息
+     */
+    public <T> void send(String exchange, String routingKey, T data) {
+
+        RabbitMessage<T> message = new RabbitMessage<>();
+        message.setMessageId(UUID.randomUUID().toString());
+        message.setData(data);
+        message.setTimestamp(System.currentTimeMillis());
+        rabbitTemplate.setExchange(exchange);
+        rabbitTemplate.convertAndSend(routingKey,message);
+    }
 }

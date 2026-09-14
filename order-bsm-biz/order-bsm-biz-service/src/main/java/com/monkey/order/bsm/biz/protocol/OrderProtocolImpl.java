@@ -240,6 +240,26 @@ public class OrderProtocolImpl implements OrderProtocol {
     }
 
     /**
+     * 承运方对账（结算申请 -> 对账）
+     * <p>
+     * 按运单号加分布式锁，与「结算申请/结算取消」等互斥串行，
+     * 配合 Service 层状态 CAS 防并发重复对账， settlement 模块内部再做资金幂等兜底。
+     *
+     * @param orderOperateDTO 承运方操作参数（orderId 运单号）
+     * @return 对账结果
+     */
+    @DistributedLock(key = "'order:reconcile:' + #orderOperateDTO.orderId", waitTime = 3, leaseTime = -1)
+    @Override
+    public Result reconcileOrder(OrderOperateDTO orderOperateDTO) {
+        try {
+            return orderService.reconcileOrder(orderOperateDTO);
+        } catch (Exception e) {
+            log.error("对账失败, orderOperateDTO={}", orderOperateDTO, e);
+            return Result.fail("对账失败，请稍后重试");
+        }
+    }
+
+    /**
      * 货主回单确认（确认收货 -> 回单确认）
      * <p>
      * 按运单号加分布式锁，配合 Service 层状态 CAS 防并发重复回单确认；

@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.monkey.settlement.bsm.biz.mapper.SettlementShipperWorkOrderMapper">
+
+    <!-- 通用查询映射结果 -->
+    <resultMap id="BaseResultMap" type="com.monkey.settlement.bsm.biz.entity.SettlementShipperWorkOrder">
+        <id column="id" property="id" />
+        <result column="work_order_no" property="workOrderNo" />
+        <result column="settlement_no" property="settlementNo" />
+        <result column="order_id" property="orderId" />
+        <result column="idempotent_key" property="idempotentKey" />
+        <result column="shipper_user_id" property="shipperUserId" />
+        <result column="shipper_user_name" property="shipperUserName" />
+        <result column="shipper_name" property="shipperName" />
+        <result column="shipper_mobile" property="shipperMobile" />
+        <result column="carrier_user_id" property="carrierUserId" />
+        <result column="carrier_name" property="carrierName" />
+        <result column="carrier_mobile" property="carrierMobile" />
+        <result column="transport_money" property="transportMoney" />
+        <result column="payable_amount" property="payableAmount" />
+        <result column="frozen_no" property="frozenNo" />
+        <result column="frozen_amount" property="frozenAmount" />
+        <result column="exchange_name" property="exchangeName" />
+        <result column="routing_key" property="routingKey" />
+        <result column="queue_name" property="queueName" />
+        <result column="message_id" property="messageId" />
+        <result column="message_type" property="messageType" />
+        <result column="business_id" property="businessId" />
+        <result column="payload" property="payload" />
+        <result column="delay_seconds" property="delaySeconds" />
+        <result column="status" property="status" />
+        <result column="status_desc" property="statusDesc" />
+        <result column="retry_count" property="retryCount" />
+        <result column="max_retry_count" property="maxRetryCount" />
+        <result column="send_time" property="sendTime" />
+        <result column="consume_time" property="consumeTime" />
+        <result column="finish_time" property="finishTime" />
+        <result column="next_retry_time" property="nextRetryTime" />
+        <result column="error_msg" property="errorMsg" />
+        <result column="remark" property="remark" />
+        <result column="delete_flag" property="deleteFlag" />
+        <result column="create_time" property="createTime" />
+        <result column="create_name" property="createName" />
+        <result column="update_time" property="updateTime" />
+        <result column="update_name" property="updateName" />
+    </resultMap>
+
+    <!-- 通用查询结果列 -->
+    <sql id="Base_Column_List">
+        id, work_order_no, settlement_no, order_id, idempotent_key, shipper_user_id, shipper_user_name, shipper_name, shipper_mobile, carrier_user_id, carrier_name, carrier_mobile, transport_money, payable_amount, frozen_no, frozen_amount, exchange_name, routing_key, queue_name, message_id, message_type, business_id, payload, delay_seconds, status, status_desc, retry_count, max_retry_count, send_time, consume_time, finish_time, next_retry_time, error_msg, remark, delete_flag, create_time, create_name, update_time, update_name
+    </sql>
+
+</mapper>

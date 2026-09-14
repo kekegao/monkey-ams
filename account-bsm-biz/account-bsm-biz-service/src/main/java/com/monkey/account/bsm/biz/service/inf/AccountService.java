@@ -35,6 +35,17 @@ public interface AccountService extends IService<Account> {
      */
     Result increaseBalance(String userId, BigDecimal amount);
 
+    /**
+     * 账户出账：余额、可用金额原子递减
+     * <p>
+     * 使用 SQL 层原子扣减并带「可用余额充足」条件，并发下不会透支；
+     * 可用余额不足或账户状态异常时返回失败，调用方不得继续后续入账动作。
+     *
+     * @param userId 用户ID
+     * @param amount 出账金额（须大于 0）
+     * @return
+     */
+    Result deductAvailableBalance(String userId, BigDecimal amount);
 
     //Result frozenTransportMoneyAccount(String userId, BigDecimal amount);
 

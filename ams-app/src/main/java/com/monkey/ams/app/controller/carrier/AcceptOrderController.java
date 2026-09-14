@@ -56,6 +56,19 @@ public class AcceptOrderController extends BaseController {
     }
 
     /**
+     * 承运方对账：结算申请(7) -> 对账(9)，确认清算金额并触发资金结算。
+     * <p>
+     * 由登录态注入承运方身份，不信任请求参数 userId；
+     * 后端通过分布式锁 + 状态 CAS + settlement 资金幂等，保证安全、幂等、并发正确。
+     *
+     * POST /accept/reconcileOrder
+     */
+    @PostMapping("/reconcileOrder")
+    public Result reconcileOrder(@RequestBody OrderOperateDTO orderOperateDTO) {
+        return orderProtocol.reconcileOrder(orderOperateDTO);
+    }
+
+    /**
      * 承运端货源大厅列表（可摘货源 / 线路搜索）
      *
      * POST /accept/list

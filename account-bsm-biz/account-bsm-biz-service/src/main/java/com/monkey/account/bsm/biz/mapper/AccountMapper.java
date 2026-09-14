@@ -37,4 +37,13 @@ public interface AccountMapper extends BaseMapper<Account> {
      */
     int rechargeBalance(@Param("userId") String userId, @Param("amount") BigDecimal amount);
 
+    /**
+     * 余额、可用金额原子递减，并要求可用余额充足（SQL 层条件更新，防并发透支出账）
+     *
+     * @param userId 用户ID
+     * @param amount 出账金额
+     * @return 影响行数（0 表示账户不存在或可用余额不足）
+     */
+    int deductAvailableBalance(@Param("userId") String userId, @Param("amount") BigDecimal amount);
+
 }

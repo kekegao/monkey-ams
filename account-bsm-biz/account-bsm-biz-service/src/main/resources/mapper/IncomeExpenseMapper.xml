@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.monkey.account.bsm.biz.mapper.IncomeExpenseMapper">
+
+    <!-- 通用查询映射结果 -->
+    <resultMap id="BaseResultMap" type="com.monkey.account.bsm.biz.entity.IncomeExpense">
+        <id column="id" property="id" />
+        <result column="flow_no" property="flowNo" />
+        <result column="user_id" property="userId" />
+        <result column="user_name" property="userName" />
+        <result column="account_type" property="accountType" />
+        <result column="direction" property="direction" />
+        <result column="direction_desc" property="directionDesc" />
+        <result column="biz_type" property="bizType" />
+        <result column="biz_type_name" property="bizTypeName" />
+        <result column="income_expense_type" property="incomeExpenseType" />
+        <result column="income_expense_type_name" property="incomeExpenseTypeName" />
+        <result column="amount" property="amount" />
+        <result column="balance_before" property="balanceBefore" />
+        <result column="balance_after" property="balanceAfter" />
+        <result column="available_before" property="availableBefore" />
+        <result column="available_after" property="availableAfter" />
+        <result column="frozen_before" property="frozenBefore" />
+        <result column="frozen_after" property="frozenAfter" />
+        <result column="counterparty_user_id" property="counterpartyUserId" />
+        <result column="counterparty_name" property="counterpartyName" />
+        <result column="counterparty_account_type" property="counterpartyAccountType" />
+        <result column="order_id" property="orderId" />
+        <result column="biz_no" property="bizNo" />
+        <result column="flow_time" property="flowTime" />
+        <result column="status" property="status" />
+        <result column="status_desc" property="statusDesc" />
+        <result column="related_flow_no" property="relatedFlowNo" />
+        <result column="remark" property="remark" />
+        <result column="delete_flag" property="deleteFlag" />
+        <result column="create_time" property="createTime" />
+        <result column="create_name" property="createName" />
+        <result column="update_time" property="updateTime" />
+        <result column="update_name" property="updateName" />
+    </resultMap>
+
+    <!-- 通用查询结果列 -->
+    <sql id="Base_Column_List">
+        id, flow_no, user_id, user_name, account_type, direction, direction_desc, biz_type, biz_type_name, income_expense_type, income_expense_type_name, amount, balance_before, balance_after, available_before, available_after, frozen_before, frozen_after, counterparty_user_id, counterparty_name, counterparty_account_type, order_id, biz_no, flow_time, status, status_desc, related_flow_no, remark, delete_flag, create_time, create_name, update_time, update_name
+    </sql>
+
+</mapper>

@@ -9,6 +9,8 @@ public enum BizTypeEnum {
     SHIP_MONEY(2, "发货保证金冻结"),
     /** 3提现申请冻结 */
     WITHDRAW_MONEY(3, "提现申请冻结"),
+    /** 4平台划账（平台公司对公账户划付承运方清算款，仅作划账流水与幂等锚点） */
+    PLATFORM_TRANSFER(4, "平台划账"),
     ;
 
     private final int value;

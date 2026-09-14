@@ -39,4 +39,15 @@
           and delete_flag = 0
     </update>
 
+    <!-- 出账：余额、可用金额原子递减，条件带可用余额充足判断，并发下不会透支（影响行数 0 即余额不足） -->
+    <update id="deductAvailableBalance">
+        update tf_b_account
+        set balance = balance - #{amount},
+            available_amount = available_amount - #{amount},
+            update_time = now()
+        where user_id = #{userId}
+          and delete_flag = 0
+          and available_amount >= #{amount}
+    </update>
+
 </mapper>

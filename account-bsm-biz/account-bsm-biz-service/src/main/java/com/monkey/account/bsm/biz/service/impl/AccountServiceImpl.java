@@ -42,4 +42,21 @@ public class AccountServiceImpl extends ServiceImpl<AccountMapper, Account> impl
         }
         return Result.success();
     }
+
+    @Override
+    public Result deductAvailableBalance(String userId, BigDecimal amount) {
+        if(userId == null || userId.trim().isEmpty()){
+            return Result.fail("用户ID不能为空");
+        }
+        if(amount == null || amount.compareTo(BigDecimal.ZERO) <= 0){
+            return Result.fail("出账金额必须大于0");
+        }
+        // SQL 层条件更新：available_amount >= amount，并发场景下不会透支出账
+        int rows = this.baseMapper.deductAvailableBalance(userId, amount);
+        if(rows != 1){
+            log.error("账户出账失败（可用余额不足或账户异常）: userId={}, amount={}, rows={}", userId, amount, rows);
+            return Result.fail("可用余额不足，无法出账");
+        }
+        return Result.success();
+    }
 }

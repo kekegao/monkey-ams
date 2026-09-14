@@ -26,15 +26,6 @@ import static com.monkey.common.mq.constants.RabbitConstants.BUSINESS_EXCHANGE;
 )
 public class RabbitMqAutoConfiguration {
 
-    @Bean
-    public DirectExchange orderExchange() {
-        return new DirectExchange(
-                BUSINESS_EXCHANGE,
-                true,
-                false
-        );
-    }
-
     /**
      * JSON 消息转换器
      */
