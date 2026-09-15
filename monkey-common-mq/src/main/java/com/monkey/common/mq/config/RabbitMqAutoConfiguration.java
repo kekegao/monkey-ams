@@ -3,16 +3,19 @@ package com.monkey.common.mq.config;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.monkey.common.mq.core.RabbitMqProducer;
 import com.monkey.common.mq.properties.RabbitMqProperties;
-import org.springframework.amqp.core.DirectExchange;
+import org.aopalliance.aop.Advice;
+import org.springframework.amqp.rabbit.config.RetryInterceptorBuilder;
 import org.springframework.amqp.rabbit.config.SimpleRabbitListenerContainerFactory;
 import org.springframework.amqp.rabbit.connection.ConnectionFactory;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
+import org.springframework.amqp.rabbit.retry.RejectAndDontRequeueRecoverer;
 import org.springframework.amqp.support.converter.Jackson2JsonMessageConverter;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
+import org.springframework.retry.interceptor.RetryOperationsInterceptor;
 
 import static com.monkey.common.mq.constants.RabbitConstants.BUSINESS_EXCHANGE;
 
@@ -25,6 +28,7 @@ import static com.monkey.common.mq.constants.RabbitConstants.BUSINESS_EXCHANGE;
         matchIfMissing = true
 )
 public class RabbitMqAutoConfiguration {
+
 
     /**
      * JSON 消息转换器
@@ -62,7 +66,7 @@ public class RabbitMqAutoConfiguration {
     public SimpleRabbitListenerContainerFactory rabbitListenerContainerFactory(
             ConnectionFactory connectionFactory,
             Jackson2JsonMessageConverter messageConverter,
-            RabbitMqProperties properties) {
+            RabbitMqProperties properties, RetryOperationsInterceptor rabbitRetryInterceptor) {
 
         SimpleRabbitListenerContainerFactory factory =
                 new SimpleRabbitListenerContainerFactory();
@@ -83,6 +87,9 @@ public class RabbitMqAutoConfiguration {
          */
         factory.setDefaultRequeueRejected(false);
 
+
+        factory.setAdviceChain(rabbitRetryInterceptor);
+
         return factory;
     }
 
@@ -97,4 +104,20 @@ public class RabbitMqAutoConfiguration {
 
         return new RabbitMqProducer(rabbitTemplate);
     }
+
+    @Bean
+    public RetryOperationsInterceptor rabbitRetryInterceptor() {
+
+        return RetryInterceptorBuilder
+                .stateless()
+                .maxAttempts(3)
+                .backOffOptions(
+                        5000,
+                        2.0,
+                        30000
+                )
+                .recoverer(new RejectAndDontRequeueRecoverer())
+                .build();
+    }
+
 }

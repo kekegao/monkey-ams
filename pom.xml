@@ -38,6 +38,7 @@
         <commons-collections4.version>4.5.0</commons-collections4.version>
         <fastjson.version>2.0.57</fastjson.version>
         <apollo-client.version>2.5.0</apollo-client.version>
+        <resilience4j.version>2.4.0</resilience4j.version>
     </properties>
 
     <modules>
@@ -54,6 +55,7 @@
         <module>settlement-bsm-biz</module>
         <module>invoice-bsm-biz</module>
         <module>monkey-job-service</module>
+        <module>monkey-common-resilience</module>
     </modules>
 
     <dependencyManagement>
@@ -71,6 +73,12 @@
                 <groupId>org.apache.dubbo</groupId>
                 <artifactId>dubbo-nacos-spring-boot-starter</artifactId>
                 <version>${dubbo.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>io.github.resilience4j</groupId>
+                <artifactId>resilience4j-spring-boot3</artifactId>
+                <version>${resilience4j.version}</version>
             </dependency>
 
         </dependencies>

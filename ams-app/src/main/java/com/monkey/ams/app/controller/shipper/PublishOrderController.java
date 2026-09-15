@@ -25,15 +25,6 @@ public class PublishOrderController extends BaseController {
     @DubboReference
     private OrderProtocol orderProtocol;
 
-    /**
-     * 发布运单
-     *
-     * POST /publishOrder/publish
-     */
-    @PostMapping("/publish")
-    public Result publishOrder(@RequestBody OrderPublishDTO orderPublishDTO) {
-        return orderProtocol.publishOrder(orderPublishDTO);
-    }
 
     /**
      * 货主「我的订单」列表：查询当前登录货主发布的订单
@@ -47,6 +38,16 @@ public class PublishOrderController extends BaseController {
         }
         queryDTO.setShipperUserId(getUserId());
         return orderProtocol.queryPublishOrderList(queryDTO);
+    }
+
+    /**
+     * 发布运单
+     *
+     * POST /publishOrder/publish
+     */
+    @PostMapping("/publish")
+    public Result publishOrder(@RequestBody OrderPublishDTO orderPublishDTO) {
+        return orderProtocol.publishOrder(orderPublishDTO);
     }
 
     /**

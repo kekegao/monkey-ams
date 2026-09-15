@@ -2,6 +2,7 @@ package com.monkey.account.bsm.biz.protocol;
 
 import com.alibaba.fastjson.JSONObject;
 import com.monkey.account.bsm.biz.api.AccountProtocol;
+import com.monkey.account.bsm.biz.constants.AccountConstants;
 import com.monkey.account.bsm.biz.dto.AccountDto;
 import com.monkey.account.bsm.biz.entity.Account;
 import com.monkey.account.bsm.biz.entity.FrozenDetail;
@@ -25,7 +26,6 @@ import com.monkey.common.lock.annotation.DistributedLock;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.dubbo.config.annotation.DubboService;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
@@ -44,12 +44,6 @@ public class AccountProtocolImpl implements AccountProtocol {
 
     @Autowired
     private IncomeExpenseService incomeExpenseService;
-
-    /**
-     * 平台公司对公账户用户ID（货主清算收款账户，由配置中心下发；未配置时货主清算直接失败，避免资金流向不确定账户）
-     */
-    @Value("${account.platform.company-user-id:1}")
-    private String platformCompanyUserId;
 
     /**
      * 单笔划账金额上限（1 亿）：与 settlement 清算金额上限保持一致，用于拦截异常入参
@@ -413,7 +407,7 @@ public class AccountProtocolImpl implements AccountProtocol {
         }
 
         // 2. 平台公司对公账户：必须已配置且已开户，否则拒绝资金动作（避免资金流向不确定账户）
-        String companyUserId = platformCompanyUserId == null ? "" : platformCompanyUserId.trim();
+        String companyUserId = AccountConstants.getPlatformCompanyUserId();
         if (companyUserId.isEmpty()) {
             log.error("未配置平台公司对公账户，货主清算终止: orderNo={}", request.getOrderNo());
             return Result.fail("未配置平台公司对公账户，无法完成清算");
@@ -563,7 +557,7 @@ public class AccountProtocolImpl implements AccountProtocol {
      * （货主托管运费已在「货主清算」阶段扣划至平台公司对公账户）。
      * <p>
      * 安全与幂等：
-     * 1) 出账账户由配置指定（platformCompanyUserId），不接受调用方传入，避免资金流向不确定账户；
+     * 1) 出账账户由配置指定（{@link AccountConstants#getPlatformCompanyUserId()}），不接受调用方传入，避免资金流向不确定账户；
      * 2) 出账使用 SQL 层原子扣减并带「可用余额充足」条件，并发场景下不会透支出账；
      * 3) 幂等锚点为承运方清算单号：同一清算单重复请求命中划账流水（已打款）时直接返回已划金额，绝不重复出账；
      * 4) 分布式锁按清算单号串行化，本地事务保证「平台出账 + 承运方入账 + 划账流水」原子一致。
@@ -606,7 +600,7 @@ public class AccountProtocolImpl implements AccountProtocol {
         }
 
         // 3. 平台公司对公账户：必须已配置且已开户，否则拒绝出账
-        String companyUserId = platformCompanyUserId == null ? "" : platformCompanyUserId.trim();
+        String companyUserId = AccountConstants.getPlatformCompanyUserId();
         if (companyUserId.isEmpty()) {
             log.error("未配置平台公司对公账户，承运方对账划账终止: settlementNo={}", settlementNo);
             return Result.fail("未配置平台公司对公账户，无法完成划账");
@@ -764,7 +758,7 @@ public class AccountProtocolImpl implements AccountProtocol {
      * 账户类型判定：配置的平台公司对公账户返回 2，其余为普通用户账户返回 1
      */
     private byte resolveAccountType(String userId) {
-        String companyUserId = platformCompanyUserId == null ? "" : platformCompanyUserId.trim();
+        String companyUserId = AccountConstants.getPlatformCompanyUserId();
         return !companyUserId.isEmpty() && companyUserId.equals(userId)
                 ? AccountTypeEnum.PLATFORM_COMPANY.byteValue()
                 : AccountTypeEnum.USER.byteValue();

@@ -101,6 +101,7 @@ public class SettlementExecuteConsumer {
         } catch (Exception e) {
             log.error("清算消息消费异常: messageId={}", messageId, e);
             channel.basicNack(deliveryTag, false, false);
+            // 交给 RetryInterceptor
             throw e;
         }
     }

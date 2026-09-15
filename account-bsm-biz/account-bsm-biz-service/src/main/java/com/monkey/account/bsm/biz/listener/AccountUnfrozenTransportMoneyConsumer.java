@@ -60,13 +60,13 @@ public class AccountUnfrozenTransportMoneyConsumer {
             // ==========================
             // 消费失败
             // ==========================
-
+            log.error("运费释放消息消费异常: messageId={}", message.getMessageId(), e);
             channel.basicNack(
                     deliveryTag,
                     false,
                     false
             );
-
+            // 交给 RetryInterceptor
             throw e;
         }
     }

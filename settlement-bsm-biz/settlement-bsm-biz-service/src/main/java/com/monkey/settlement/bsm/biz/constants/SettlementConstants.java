@@ -99,9 +99,9 @@ public final class SettlementConstants {
     public static final String MESSAGE_TYPE_SHIPPER_CLEARING = "SETTLEMENT_SHIPPER_CLEARING";
 
     /**
-     * 清算消息默认延迟投递秒数（30S）
+     * 清算消息默认延迟投递秒数（60S）
      */
-    public static final int WORK_ORDER_DELAY_SECONDS = 30;
+    public static final int WORK_ORDER_DELAY_SECONDS = 60;
 
     /**
      * 工单默认最大重试次数（超出后不再自动重试，转人工）
