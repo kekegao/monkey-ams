@@ -1,4 +1,4 @@
-FROM eclipse-temurin:21-jre
+FROM swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/eclipse-temurin:21-jre
 LABEL authors="gkk"
 WORKDIR /app
 
